@@ -7,6 +7,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+from actsprite import config
 from meta_sam_parser import (
     CompletedOutcome,
     decode_mask_to_raster,
@@ -73,6 +74,67 @@ def main_track(objects: list[SamObject]) -> dict[int, SamObject]:
         totals[o.object_id] = totals.get(o.object_id, 0) + o.area
     best = max(totals, key=totals.__getitem__)
     return {o.frame_index: o for o in objects if o.object_id == best}
+
+
+def motion_curve(aligned: list[np.ndarray]) -> np.ndarray:
+    """Shape change between consecutive in-place masks (1 - IoU), length n-1."""
+    from actsprite.verify import mask_iou
+
+    return np.array([1.0 - mask_iou(a, b) for a, b in zip(aligned, aligned[1:])], dtype=np.float64)
+
+
+def select_keyframes(aligned: list[np.ndarray], count: int, *, loop: bool) -> list[int]:
+    """Pick `count` frames spaced evenly by accumulated motion, so pauses do not eat frames.
+
+    loop=True treats the clip as one cycle [0, n) and leaves out the end (it equals the start).
+    """
+    n = len(aligned)
+    if n == 0:
+        raise ValueError("No frames to choose from.")
+    if count >= n:
+        return list(range(n))
+    cum = np.concatenate([[0.0], np.cumsum(motion_curve(aligned))])
+    total = cum[-1]
+    if total <= 0:
+        targets = np.linspace(0, n - 1, count, endpoint=not loop)
+        cum = np.arange(n, dtype=np.float64)
+    else:
+        targets = np.array([total * k / count for k in range(count)]) if loop else np.linspace(0, total, count)
+
+    picks: list[int] = []
+    for i, t in enumerate(targets):
+        lo = picks[-1] + 1 if picks else 0
+        hi = n - (count - i)  # leave room for the remaining picks
+        candidates = np.arange(lo, hi + 1)
+        picks.append(int(candidates[np.argmin(np.abs(cum[candidates] - t))]))
+    return picks
+
+
+def find_cycle(
+    aligned: list[np.ndarray],
+    *,
+    min_frames: int = config.CYCLE_MIN_FRAMES,
+    min_similarity: float = config.CYCLE_MIN_SIMILARITY,
+) -> int | None:
+    """Length of the first full motion cycle starting at frame 0, or None if no loop is found.
+
+    A cycle ends at the first frame k that looks like frame 0 again (local IoU peak above
+    min_similarity) after the shape has first moved away from frame 0.
+    """
+    from actsprite.verify import mask_iou
+
+    sim = [mask_iou(aligned[0], m) for m in aligned]
+    moved_away = False
+    for k in range(1, len(sim)):
+        if sim[k] < min_similarity:
+            moved_away = True
+            continue
+        if not moved_away or k < min_frames:
+            continue
+        nxt = sim[k + 1] if k + 1 < len(sim) else -1.0
+        if sim[k] >= sim[k - 1] and sim[k] >= nxt:
+            return k
+    return None
 
 
 def video_info(path: Path) -> tuple[float, int, tuple[int, int]]:

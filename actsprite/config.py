@@ -46,12 +46,23 @@ GUIDE_FILL_GRAY = 205  # silhouette fill when the guide is drawn filled
 GUIDE_HEAD_FRACTION = 0.18  # top share of the figure with interior lines removed (no faces)
 PALETTE_SIZE = 24
 
-# --- Verification loop (provisional, calibrate on Day 1 / 10-30) -----------
-IOU_MIN = 0.70
-IDENTITY_MIN = 7
+# --- Verification loop (Day 1 values from spikes/REPORT.md; recalibrate 10-30) ---
+IOU_MIN = 0.55  # silhouette IoU, height-normalised, feet aligned, with tolerance
+IOU_TOLERANCE_PX = 6  # both silhouettes dilated by this much on a CELL_SIZE-high canvas
+POSE_MIN = 7  # Muse Spark pose score
+IDENTITY_MIN = 7  # Muse Spark identity score
 PALETTE_DRIFT_MAX = 0.15
 PALETTE_MATCH_DISTANCE = 40.0  # RGB distance that still counts as "in palette"
 MAX_REGENERATIONS = 2
-SCORE_WEIGHT_IOU = 0.4
-SCORE_WEIGHT_IDENTITY = 0.4
+SCORE_WEIGHT_IOU = 0.3
+SCORE_WEIGHT_POSE = 0.2
+SCORE_WEIGHT_IDENTITY = 0.3
 SCORE_WEIGHT_PALETTE = 0.2
+
+# --- Cutout -----------------------------------------------------------------
+CUTOUT_WHITE_TOLERANCE = 18  # pixels with min(R,G,B) > 255 - this count as background
+CUTOUT_MIN_SPECK = 0.0005  # drop islands smaller than this share of the image
+
+# --- Keyframes ----------------------------------------------------------------
+CYCLE_MIN_SIMILARITY = 0.75  # IoU with the first frame that closes a loop
+CYCLE_MIN_FRAMES = 6

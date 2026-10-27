@@ -66,6 +66,30 @@ def fit_to_canvas(
     return out_mask, out_image, scale
 
 
+def align_sequence(
+    masks: list[np.ndarray],
+    images: list[np.ndarray] | None = None,
+    *,
+    size: int = config.CELL_SIZE,
+    margin: int = config.CELL_MARGIN,
+) -> tuple[list[np.ndarray], list[np.ndarray] | None, float]:
+    """Put every frame of one action in place on the same canvas with ONE scale
+    (set by the frame that needs the most room), so height changes between frames survive
+    and the subject's travel across the video is removed (run in place)."""
+    if not masks:
+        raise ValueError("align_sequence needs at least one mask.")
+    scale = min(fit_scale(m, size, margin) for m in masks)
+    out_masks: list[np.ndarray] = []
+    out_images: list[np.ndarray] | None = [] if images is not None else None
+    for i, m in enumerate(masks):
+        fm, fi, _ = fit_to_canvas(m, size, margin=margin, image=None if images is None else images[i], scale=scale)
+        out_masks.append(fm)
+        if out_images is not None:
+            assert fi is not None
+            out_images.append(fi)
+    return out_masks, out_images, scale
+
+
 def _paste(dst: np.ndarray, src: np.ndarray, x: int, y: int) -> None:
     h, w = src.shape[:2]
     H, W = dst.shape[:2]

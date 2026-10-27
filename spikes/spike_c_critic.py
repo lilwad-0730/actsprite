@@ -18,8 +18,29 @@ import numpy as np
 
 from actsprite import config
 from actsprite.meta_client import MetaClient
-from actsprite.verify import CRITIC_PROMPT, CRITIC_SCHEMA
 from spikes.common import OUT, STYLES, decode_rgb, estimate, load_mask, png_bytes, save_rgb, tile, write_json
+
+# Day 1 identity-only critic (the product critic in actsprite.verify also scores pose).
+CRITIC_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "identity_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "issues": {"type": "array", "items": {"type": "string"}},
+        "fix_instruction": {"type": "string"},
+    },
+    "required": ["identity_score", "issues", "fix_instruction"],
+    "additionalProperties": False,
+}
+CRITIC_PROMPT = (
+    "You are a strict 2D game animation art director.\n"
+    "Image 1 is the character reference sheet. Image 2 is the previous approved frame. "
+    "Image 3 is the candidate frame.\n"
+    "Judge only whether image 3 is the SAME character as image 1 and visually continuous with image 2.\n"
+    "Check: head and body proportions, outfit details, colors, accessories, line style.\n"
+    "Ignore pose differences; pose is checked elsewhere.\n"
+    'Return JSON only: {"identity_score": 1-10, "issues": ["short issue", ...], '
+    '"fix_instruction": "one sentence telling the artist what to change"}'
+)
 
 import argparse
 

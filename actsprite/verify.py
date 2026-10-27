@@ -1,12 +1,15 @@
-"""Verify: the three per-frame checks and the combined score."""
+"""Verify: per-frame checks (pose silhouette, critic identity + pose, palette drift) and the combined score."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
+import cv2
 import numpy as np
 from PIL import Image
 
 from actsprite import config
-from actsprite.align import fit_to_canvas
+from actsprite.align import fit_to_canvas, mask_bbox
 
 
 def mask_iou(a: np.ndarray, b: np.ndarray) -> float:
@@ -16,12 +19,33 @@ def mask_iou(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.logical_and(a, b).sum() / union)
 
 
-def silhouette_iou(a: np.ndarray, b: np.ndarray, size: int = config.CELL_SIZE) -> float:
-    """Pose fidelity: IoU after putting both silhouettes on the same canvas,
-    each scaled to fit and anchored at its feet (bottom-centre)."""
-    a_fit, _, _ = fit_to_canvas(a, size, margin=0)
-    b_fit, _, _ = fit_to_canvas(b, size, margin=0)
-    return mask_iou(a_fit, b_fit)
+def largest_component(mask: np.ndarray) -> np.ndarray:
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), 8)
+    if n <= 1:
+        return mask.astype(bool)
+    return labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+
+
+def _normalise(mask: np.ndarray, height: int, tolerance: int) -> np.ndarray:
+    mask = largest_component(mask)
+    _, top, _, bottom = mask_bbox(mask)
+    placed, _, _ = fit_to_canvas(mask, height * 3, margin=0, scale=height / (bottom - top))
+    if tolerance > 0:
+        kernel = np.ones((2 * tolerance + 1, 2 * tolerance + 1), np.uint8)
+        placed = cv2.dilate(placed.astype(np.uint8), kernel) > 0
+    return placed
+
+
+def silhouette_iou(
+    a: np.ndarray,
+    b: np.ndarray,
+    height: int = config.CELL_SIZE,
+    tolerance: int = config.IOU_TOLERANCE_PX,
+) -> float:
+    """Pose fidelity: IoU after scaling both silhouettes to the same height, feet on
+    the same baseline and mask centroids aligned. Specks are dropped and both shapes
+    get a small tolerance so armour/outline thickness does not dominate."""
+    return mask_iou(_normalise(a, height, tolerance), _normalise(b, height, tolerance))
 
 
 def extract_palette(image: np.ndarray, mask: np.ndarray, colors: int = config.PALETTE_SIZE) -> np.ndarray:
@@ -36,6 +60,12 @@ def extract_palette(image: np.ndarray, mask: np.ndarray, colors: int = config.PA
     return np.array([flat[i * 3 : i * 3 + 3] for i in used], dtype=np.float32)
 
 
+def nearest_palette_distance(pixels: np.ndarray, palette: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """For (N, 3) pixels return (distance, index) of the nearest palette colour."""
+    d = np.sqrt(((pixels[:, None, :].astype(np.float32) - palette[None, :, :]) ** 2).sum(axis=2))
+    return d.min(axis=1), d.argmin(axis=1)
+
+
 def palette_drift(
     image: np.ndarray,
     mask: np.ndarray,
@@ -43,43 +73,91 @@ def palette_drift(
     max_distance: float = config.PALETTE_MATCH_DISTANCE,
 ) -> float:
     """Share of subject pixels whose nearest palette colour is farther than max_distance."""
-    pixels = image[mask].reshape(-1, 3).astype(np.float32)
+    pixels = image[mask].reshape(-1, 3)
     if len(pixels) == 0:
         return 1.0
-    dist = np.sqrt(((pixels[:, None, :] - palette[None, :, :]) ** 2).sum(axis=2)).min(axis=1)
+    dist, _ = nearest_palette_distance(pixels, palette)
     return float((dist > max_distance).mean())
 
 
-def combined_score(iou: float, identity: float, drift: float) -> float:
-    return (
-        config.SCORE_WEIGHT_IOU * iou
-        + config.SCORE_WEIGHT_IDENTITY * identity / 10.0
-        + config.SCORE_WEIGHT_PALETTE * (1.0 - drift)
-    )
+@dataclass
+class FrameScores:
+    iou: float
+    pose: float  # critic, 1-10
+    identity: float  # critic, 1-10
+    drift: float
 
+    @property
+    def combined(self) -> float:
+        return (
+            config.SCORE_WEIGHT_IOU * self.iou
+            + config.SCORE_WEIGHT_POSE * self.pose / 10.0
+            + config.SCORE_WEIGHT_IDENTITY * self.identity / 10.0
+            + config.SCORE_WEIGHT_PALETTE * (1.0 - self.drift)
+        )
 
-def passes(iou: float, identity: float, drift: float) -> bool:
-    return iou >= config.IOU_MIN and identity >= config.IDENTITY_MIN and drift <= config.PALETTE_DRIFT_MAX
+    @property
+    def passed(self) -> bool:
+        return (
+            self.iou >= config.IOU_MIN
+            and self.pose >= config.POSE_MIN
+            and self.identity >= config.IDENTITY_MIN
+            and self.drift <= config.PALETTE_DRIFT_MAX
+        )
+
+    def failures(self) -> list[str]:
+        out = []
+        if self.iou < config.IOU_MIN:
+            out.append(f"silhouette IoU {self.iou:.2f} < {config.IOU_MIN}")
+        if self.pose < config.POSE_MIN:
+            out.append(f"pose {self.pose:.0f} < {config.POSE_MIN}")
+        if self.identity < config.IDENTITY_MIN:
+            out.append(f"identity {self.identity:.0f} < {config.IDENTITY_MIN}")
+        if self.drift > config.PALETTE_DRIFT_MAX:
+            out.append(f"palette drift {self.drift:.2f} > {config.PALETTE_DRIFT_MAX}")
+        return out
 
 
 CRITIC_SCHEMA: dict = {
     "type": "object",
     "properties": {
         "identity_score": {"type": "integer", "minimum": 1, "maximum": 10},
+        "pose_score": {"type": "integer", "minimum": 1, "maximum": 10},
         "issues": {"type": "array", "items": {"type": "string"}},
         "fix_instruction": {"type": "string"},
     },
-    "required": ["identity_score", "issues", "fix_instruction"],
+    "required": ["identity_score", "pose_score", "issues", "fix_instruction"],
     "additionalProperties": False,
 }
 
-CRITIC_PROMPT = (
-    "You are a strict 2D game animation art director.\n"
-    "Image 1 is the character reference sheet. Image 2 is the previous approved frame. "
-    "Image 3 is the candidate frame.\n"
-    "Judge only whether image 3 is the SAME character as image 1 and visually continuous with image 2.\n"
-    "Check: head and body proportions, outfit details, colors, accessories, line style.\n"
-    "Ignore pose differences; pose is checked elsewhere.\n"
-    'Return JSON only: {"identity_score": 1-10, "issues": ["short issue", ...], '
-    '"fix_instruction": "one sentence telling the artist what to change"}'
+_CRITIC_RULES = (
+    "identity_score (1-10): is the CANDIDATE the same character as the REFERENCE SHEET{prev_clause}? "
+    "Check head and body proportions, outfit details, colors, accessories and line style. Ignore the pose here.\n"
+    "pose_score (1-10): does the CANDIDATE's pose match the POSE GUIDE? Compare only the angle of each leg and "
+    "knee, whether each foot is on the ground or in the air, the arm positions and the torso lean. Ignore costume, "
+    "body proportions and art style here. 10 = same pose, 1 = completely different pose.\n"
+    "issues: short list of problems. fix_instruction: one sentence telling the artist what to change "
+    "(empty string if nothing).\n"
+    "Return JSON only."
 )
+
+
+def critic_parts(sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes) -> list[str | bytes]:
+    """Prompt parts for the one-call art-director check (identity + pose)."""
+    parts: list[str | bytes] = [
+        "You are a strict 2D game animation art director.",
+        "REFERENCE SHEET:",
+        sheet,
+    ]
+    if prev is not None:
+        parts += ["PREVIOUS APPROVED FRAME:", prev]
+    parts += [
+        "POSE GUIDE (plain figure):",
+        guide,
+        "CANDIDATE FRAME:",
+        candidate,
+        _CRITIC_RULES.format(
+            prev_clause=" and visually continuous with the PREVIOUS APPROVED FRAME" if prev is not None else ""
+        ),
+    ]
+    return parts
