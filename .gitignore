@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated data (API cache, cost log, run outputs)
+cache/
+logs/
+out/
+spikes/out/
+
+# Large media (demo clips in samples/ are added explicitly with git add -f)
+*.mp4
+*.mov
+*.MOV
+
+# Unity
+unity/**/Library/
+unity/**/Temp/
+unity/**/Logs/
+unity/**/UserSettings/
+unity/**/obj/
