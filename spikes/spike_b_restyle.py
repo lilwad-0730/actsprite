@@ -25,7 +25,7 @@ from actsprite.align import fit_to_canvas, pose_guide
 from actsprite.meta_client import MetaClient
 from actsprite.verify import extract_palette, palette_drift, silhouette_iou
 from spikes.common import (
-    KNIGHT,
+    CHARACTERS,
     OUT,
     SHEET_PROMPT,
     STYLES,
@@ -69,9 +69,14 @@ def main() -> None:
     ap.add_argument("--poses", type=Path, default=None, help="folder of pose source images")
     ap.add_argument("--styles", default="pixel,handdrawn")
     ap.add_argument("--subject", default="person", help="SAM prompt for the pose source")
+    ap.add_argument("--variant", default="", help="output sub-folder suffix, e.g. v2")
+    ap.add_argument("--prompt", default="v1", choices=["v1", "v2"])
+    ap.add_argument("--character", default="knight", choices=sorted(CHARACTERS))
+    ap.add_argument("--fill", action="store_true", help="filled silhouette guide, no face lines")
     args = ap.parse_args()
     styles = args.styles.split(",")
-    out = OUT / "b_restyle"
+    out = OUT / ("b_restyle" + (f"_{args.variant}" if args.variant else ""))
+    pose_out = OUT / "b_restyle"  # pose photos are shared between variants
 
     client = MetaClient()
     n_pose = 3 if args.poses is None else len(list(args.poses.iterdir()))
@@ -80,14 +85,17 @@ def main() -> None:
     estimate(f"{n_img} Muse Image + {n_sam} SAM images",
              n_img * config.PRICE_IMAGE + n_sam * config.PRICE_SAM_IMAGE)
 
-    poses = load_poses(client, args.poses, out)
+    poses = load_poses(client, args.poses, pose_out)
     guides: dict[str, tuple[bytes, np.ndarray]] = {}
     for name, rgb in poses.items():
         mask = sam_mask(client, rgb, args.subject, note=f"spikeB pose mask {name}")
         if mask is None:
             print(f"! SAM found no '{args.subject}' in pose {name}; skipped")
             continue
-        guide, gmask = pose_guide(rgb, mask)
+        if args.fill:
+            guide, gmask = pose_guide(rgb, mask, fill=True, head_fraction=config.GUIDE_HEAD_FRACTION)
+        else:
+            guide, gmask = pose_guide(rgb, mask)
         save_rgb(out / "guides" / f"{name}.png", guide)
         guides[name] = (png_bytes(guide), gmask)
 
@@ -95,7 +103,8 @@ def main() -> None:
     overview: list[np.ndarray] = []
     for style in styles:
         sheet_png, _ = client.generate_image(
-            [SHEET_PROMPT.format(character=KNIGHT, style=STYLES[style])], note=f"spikeB sheet {style}"
+            [SHEET_PROMPT.format(character=CHARACTERS[args.character], style=STYLES[style])],
+            note=f"spikeB sheet {style}",
         )
         sheet = decode_rgb(sheet_png)
         save_rgb(out / style / "sheet.png", sheet)
@@ -106,7 +115,8 @@ def main() -> None:
         prev: bytes | None = None
         for name, (guide_png, gmask) in guides.items():
             img_png, res = client.generate_image(
-                redraw_parts(sheet_png, guide_png, prev, style), note=f"spikeB redraw {style} {name}"
+                redraw_parts(sheet_png, guide_png, prev, style, version=args.prompt),
+                note=f"spikeB redraw {style} {name}",
             )
             img = decode_rgb(img_png)
             save_rgb(out / style / f"{name}.png", img)

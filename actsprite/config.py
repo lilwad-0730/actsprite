@@ -42,6 +42,8 @@ FRAMES_PER_ACTION = 8
 CELL_SIZE = 256
 CELL_MARGIN = 12  # px kept free above the head and at the sides
 GUIDE_SIZE = 512  # pose guide image sent to Muse Image
+GUIDE_FILL_GRAY = 205  # silhouette fill when the guide is drawn filled
+GUIDE_HEAD_FRACTION = 0.18  # top share of the figure with interior lines removed (no faces)
 PALETTE_SIZE = 24
 
 # --- Verification loop (provisional, calibrate on Day 1 / 10-30) -----------

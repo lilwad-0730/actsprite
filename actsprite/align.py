@@ -81,9 +81,14 @@ def pose_guide(
     *,
     size: int = config.GUIDE_SIZE,
     margin: int = config.CELL_MARGIN * 2,
+    fill: bool = False,
+    head_fraction: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Black-on-white line art of the subject only (no photo pixels leave this function).
 
+    fill: paint the silhouette light gray under the lines (stronger pose signal).
+    head_fraction: drop interior lines in the top part of the figure (e.g. 0.18) so
+    facial features of a real actor never reach the image model.
     Returns (guide_rgb, guide_mask) on a size x size canvas, feet on the bottom row.
     """
     fitted_mask, fitted_image, _ = fit_to_canvas(mask, size, margin=margin, image=image)
@@ -93,8 +98,13 @@ def pose_guide(
     edges = cv2.Canny(gray, 40, 120) > 0
     inner = cv2.erode(fitted_mask.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
     edges &= inner
+    if head_fraction > 0:
+        _, top, _, bottom = mask_bbox(fitted_mask)
+        edges[: top + int((bottom - top) * head_fraction)] = False
 
     guide = np.full((size, size, 3), 255, dtype=np.uint8)
+    if fill:
+        guide[fitted_mask] = config.GUIDE_FILL_GRAY
     guide[edges] = 0
     contours, _ = cv2.findContours(fitted_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     cv2.drawContours(guide, contours, -1, (0, 0, 0), thickness=3)

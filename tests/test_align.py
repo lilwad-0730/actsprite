@@ -55,3 +55,16 @@ def test_pose_guide_is_black_lines_on_white_only_inside_subject():
     ys, xs = np.nonzero(gmask)
     grown[max(ys.min() - 3, 0) : ys.max() + 4, max(xs.min() - 3, 0) : xs.max() + 4] = True
     assert not (dark & ~grown).any()
+
+
+def test_pose_guide_fill_and_head_lines_removed():
+    img = np.full((200, 300, 3), 90, np.uint8)
+    img[45:55, 130:150] = 230  # "eyes" near the top of the figure
+    img[120:130, 130:150] = 230  # detail lower on the body
+    guide, gmask = pose_guide(img, figure(), size=128, margin=8, fill=True, head_fraction=0.3)
+    assert set(np.unique(guide)) <= {0, 205, 255}
+    l, t, r, b = mask_bbox(gmask)
+    head = guide[t + 4 : t + int((b - t) * 0.3), l + 4 : r - 4, 0]
+    assert (head == 205).all()  # only fill, no interior lines in the head band
+    body = guide[t + int((b - t) * 0.5) : b - 4, l + 4 : r - 4, 0]
+    assert (body == 0).any()

@@ -20,9 +20,15 @@ STYLES = {
     "handdrawn": "hand-drawn 2D game art, clean ink outlines, flat cel shading",
 }
 
-KNIGHT = (
-    "an original small knight: silver armor, blue cape, red plume on the helmet, short sword at the hip"
-)
+CHARACTERS = {
+    "knight": "an original small knight: silver armor, blue cape, red plume on the helmet, short sword at the hip",
+    # v2: no cape (it hides the pose) and normal proportions (closer to the actor's silhouette)
+    "knight2": (
+        "an original young knight with normal adult proportions (about 6 heads tall): fitted silver plate "
+        "armor with blue cloth trim, red plume on the helmet, short sword in a scabbard on the hip, no cape"
+    ),
+}
+KNIGHT = CHARACTERS["knight"]
 
 SHEET_PROMPT = (
     "Original character design for a 2D side-scrolling game: {character}. "
@@ -40,18 +46,36 @@ REDRAW_PROMPT = (
 )
 
 
+REDRAW_PROMPT_V2 = (
+    "Redraw the character from image 1 in the EXACT pose of the pose guide (the last image). "
+    "The pose guide is the only source of the pose: match the angle of every limb, where each foot and knee is, "
+    "the arm positions and the body lean.\n"
+    "Keep the character's design, outfit and colors identical to image 1.\n"
+    "{prev_line}"
+    "Full body, side view, facing right, feet touching the bottom edge like the pose guide.\n"
+    "Style: {style}. Plain solid white background, no shadow, no props, no text, no border.\n"
+    "{fix}"
+)
+
+
 def redraw_parts(
-    sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = ""
+    sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = "", version: str = "v1"
 ) -> list[str | bytes]:
     parts: list[str | bytes] = ["Image 1 - character reference sheet:", sheet]
     prev_line = ""
     if prev is not None:
         parts += ["Image 2 - previous animation frame:", prev]
-        prev_line = "Match the previous animation frame (image 2) for line weight, shading and colors.\n"
+        prev_line = (
+            "Match the previous animation frame (image 2) for line weight, shading and colors.\n"
+            if version == "v1"
+            else "Use image 2 (the previous animation frame) ONLY for line weight, shading and colors; "
+            "do NOT copy its pose.\n"
+        )
+    template = REDRAW_PROMPT if version == "v1" else REDRAW_PROMPT_V2
     parts += [
-        "Last image - pose guide (line art):",
+        "Last image - pose guide (line art):" if version == "v1" else "Last image - pose guide:",
         guide,
-        REDRAW_PROMPT.format(prev_line=prev_line, style=STYLES[style], fix=fix),
+        template.format(prev_line=prev_line, style=STYLES[style], fix=fix),
     ]
     return parts
 

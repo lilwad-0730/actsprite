@@ -21,6 +21,8 @@ from actsprite.meta_client import MetaClient
 from actsprite.verify import CRITIC_PROMPT, CRITIC_SCHEMA
 from spikes.common import OUT, STYLES, decode_rgb, estimate, load_mask, png_bytes, save_rgb, tile, write_json
 
+import argparse
+
 SRC = OUT / "b_restyle" / "pixel"
 
 
@@ -33,6 +35,11 @@ def hue_rotate(rgb: np.ndarray, mask: np.ndarray, shift: int = 60) -> np.ndarray
 
 
 def main() -> None:
+    global SRC
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", default="b_restyle", help="spike B output folder to use")
+    args = ap.parse_args()
+    SRC = OUT / args.src / "pixel"
     for f in ["sheet.png", "run.png", "jump.png", "idle.png", "jump_mask.png"]:
         if not (SRC / f).exists():
             raise SystemExit(f"Missing {SRC / f}. Run spike B first (python -m spikes.spike_b_restyle).")
@@ -43,15 +50,15 @@ def main() -> None:
     prev = (SRC / "run.png").read_bytes()
     good = (SRC / "jump.png").read_bytes()
     good_rgb = decode_rgb(good)
-    out = OUT / "c_critic"
+    out = OUT / f"c_critic_{args.src}"
 
     bad_hue = png_bytes(hue_rotate(good_rgb, load_mask(SRC / "jump_mask.png")))
     bad_edit, _ = client.generate_image(
         [good, "Edit this image: remove the helmet so the head is bare with short brown hair, "
-               "and make the cape green. Keep the pose, art style and everything else unchanged."],
+               "and change every blue part to green. Keep the pose, art style and everything else unchanged."],
         note="spikeC bad edit",
     )
-    guide = (OUT / "b_restyle" / "guides" / "jump.png").read_bytes()
+    guide = (SRC.parent / "guides" / "jump.png").read_bytes()
     bad_other, _ = client.generate_image(
         [guide, "Draw an original wizard in a purple robe and pointed hat with a wooden staff, in the exact "
                 f"pose of this line-art guide. Side view facing right. Style: {STYLES['pixel']}. "
