@@ -29,6 +29,9 @@
   輸出在 `output_text`，每幀一行 `<Nf>id<|box;...|><|mask;x=0;y=0;data=H,W,<enc>payload|>`。
   遮罩是 box 範圍內的裁切（H×W 等於 box 大小）。用官方 `meta-sam-parser`（SAM License）解析。
   價格：圖片 $2.50 / 1000 張；影片 $0.20 / 1000 幀，每次至少計 50 幀。影片僅 MP4/MOV（H.264/H.265/MPEG-4）。
+  實測（10/28）：SAM 影片呼叫本身很快（489 幀 25 秒），但 `meta-sam-parser` 的遮罩解碼是純 Python 逐像素，
+  且解析時會先驗證解碼一次：480p 每幀約 3 秒 CPU、720p 約 6–7 秒。所以送 SAM 前先降到 480p、必要時降 fps，
+  並用 `capture.parse_sam_output(workers=...)` 多行程解析。
 - Muse Image：模型 `muse-image-1.0`，$0.01/張。Responses API 可交錯傳多張參考圖；
   `tools=[{"type":"image_generation", ...}]` 可關閉 web/image search 與 shell、設定 size（只決定比例）、`output_format`。
   背景永遠不透明 → 必須白底＋SAM 去背。編輯最多 10 張參考圖。

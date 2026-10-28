@@ -44,3 +44,77 @@ def test_largest_object_by_area():
     best = largest_object(objs)
     assert best is not None
     assert best.area == max(int(np.sum(o.mask)) for o in objs)
+
+
+def _obj(i: int, mask: np.ndarray) -> "SamObject":
+    from actsprite.capture import SamObject
+
+    return SamObject(i, "0", (0, 0, 1, 1), mask)
+
+
+def _body(top: int, bottom: int, left: int = 20, right: int = 40, h: int = 100, w: int = 60) -> np.ndarray:
+    m = np.zeros((h, w), bool)
+    m[top:bottom, left:right] = True
+    return m
+
+
+def test_edge_contact():
+    from actsprite.capture import edge_contact
+
+    assert edge_contact(_body(10, 90)) == set()
+    assert edge_contact(_body(10, 100)) == {"bottom"}
+    assert edge_contact(_body(0, 50, left=0)) == {"top", "left"}
+    assert edge_contact(np.zeros((5, 5), bool)) == set()
+
+
+def test_full_body_range_trims_walk_in_and_out():
+    from actsprite.capture import full_body_range
+
+    # 0-2 close to the camera (cut off), 3-11 whole body, 12 missing, 13-15 whole body, 16-17 cut off.
+    track = {}
+    for i in range(18):
+        if i == 12:
+            continue
+        cut = i < 3 or i >= 16
+        track[i] = _obj(i, _body(0 if cut else 10, 100 if cut else 90))
+    assert full_body_range(track, 18, min_frames=3) == (3, 12)
+    assert full_body_range(track, 18, min_frames=10) is None
+
+
+def test_prepare_video_strides_and_scales(tmp_path):
+    import cv2
+
+    from actsprite.capture import prepare_video, read_frames
+
+    src = tmp_path / "src.mp4"
+    writer = cv2.VideoWriter(str(src), cv2.VideoWriter_fourcc(*"mp4v"), 60, (320, 180))
+    for i in range(20):
+        frame = np.zeros((180, 320, 3), np.uint8)
+        frame[:, : 10 * (i + 1)] = 255
+        writer.write(frame)
+    writer.release()
+
+    pv = prepare_video(src, tmp_path / "out.mp4", max_short_side=90, target_fps=30)
+    assert pv.size == (160, 90)
+    assert pv.source_indices == list(range(0, 20, 2))
+    assert pv.frame_count == 10 and abs(pv.fps - 30) < 0.01
+    frames = read_frames(pv.path)
+    assert len(frames) == 10 and frames[0].shape == (90, 160, 3)
+
+
+def test_parallel_video_parse_matches_serial():
+    text = "".join(SAMPLE.replace("<0f>", f"<{i}f>") for i in range(6))
+    serial = parse_sam_output(text, (320, 334), video=True, workers=1)
+    parallel = parse_sam_output(text, (320, 334), video=True, workers=3)
+    assert [(o.frame_index, o.object_id, o.box) for o in serial] == [
+        (o.frame_index, o.object_id, o.box) for o in parallel
+    ]
+    assert all(np.array_equal(a.mask, b.mask) for a, b in zip(serial, parallel))
+
+
+def test_full_body_range_can_ignore_an_edge():
+    from actsprite.capture import full_body_range
+
+    track = {i: _obj(i, _body(10, 100)) for i in range(8)}  # feet touch the bottom in every frame
+    assert full_body_range(track, 8) is None
+    assert full_body_range(track, 8, edges=("left", "right", "top")) == (0, 8)

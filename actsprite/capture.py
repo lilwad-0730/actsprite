@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,27 +30,57 @@ class SamObject:
         return int(self.mask.sum())
 
 
-def parse_sam_output(text: str, frame_size: tuple[int, int], *, video: bool) -> list[SamObject]:
-    """Decode SAM 3.1 special-token text into full-frame masks.
+_Decoded = tuple[int, str, tuple[int, int, int, int], np.ndarray]  # frame, object id, box, crop
 
-    frame_size is (width, height) of the media that was sent. Each SAM mask is a
-    crop covering its box, so it is pasted back at the box's top-left corner.
-    """
-    width, height = frame_size
+
+def _decode_chunk(text: str, video: bool) -> list[_Decoded]:
+    """Parse SAM text with the official parser and decode each mask crop (runs in a worker)."""
     parser = (video_segmentation_format() if video else image_segmentation_format()).create_parser()
     parser.push(text)
     result = parser.finish(CompletedOutcome()).result
-
-    objects: list[SamObject] = []
+    out: list[_Decoded] = []
     for record in result.records:
         if record.kind != "mask":
             continue
         m = record.mask
         crop = np.frombuffer(decode_mask_to_raster(m), dtype=np.uint8).reshape(m.height, m.width)
-        left, top = int(round(record.bounds.left)), int(round(record.bounds.top))
-        right, bottom = int(round(record.bounds.right)), int(round(record.bounds.bottom))
+        box = tuple(int(round(v)) for v in (record.bounds.left, record.bounds.top,
+                                             record.bounds.right, record.bounds.bottom))
+        frame_index = record.frame.frame_index if record.frame is not None else 0
+        out.append((frame_index, record.object_id, box, crop))  # type: ignore[arg-type]
+    return out
+
+
+def _frame_chunks(text: str, count: int) -> list[str]:
+    """Split video output (one line per frame) into about `count` groups of whole lines."""
+    lines = text.splitlines(keepends=True)
+    size = max(1, -(-len(lines) // count))
+    return ["".join(lines[i : i + size]) for i in range(0, len(lines), size)]
+
+
+def parse_sam_output(
+    text: str, frame_size: tuple[int, int], *, video: bool, workers: int | None = None
+) -> list[SamObject]:
+    """Decode SAM 3.1 special-token text into full-frame masks.
+
+    frame_size is (width, height) of the media that was sent. Each SAM mask is a
+    crop covering its box, so it is pasted back at the box's top-left corner.
+    The official decoder is pure Python (~1 s per 720p person mask), so video output
+    is split by frame and decoded in `workers` processes (default: all CPUs; 1 = in-process).
+    """
+    width, height = frame_size
+    workers = workers or os.cpu_count() or 1
+    chunks = _frame_chunks(text, workers * 4) if video and workers > 1 else [text]
+    if len(chunks) > 1:
+        with ProcessPoolExecutor(max_workers=min(workers, len(chunks))) as pool:
+            decoded = [d for part in pool.map(_decode_chunk, chunks, [video] * len(chunks)) for d in part]
+    else:
+        decoded = _decode_chunk(text, video)
+
+    objects: list[SamObject] = []
+    for frame_index, object_id, (left, top, right, bottom), crop in decoded:
         box_w, box_h = right - left, bottom - top
-        if (box_w, box_h) != (m.width, m.height) and box_w > 0 and box_h > 0:
+        if (box_w, box_h) != (crop.shape[1], crop.shape[0]) and box_w > 0 and box_h > 0:
             crop = cv2.resize(crop, (box_w, box_h), interpolation=cv2.INTER_NEAREST)
 
         full = np.zeros((height, width), dtype=bool)
@@ -56,8 +88,7 @@ def parse_sam_output(text: str, frame_size: tuple[int, int], *, video: bool) -> 
         x1, y1 = min(left + crop.shape[1], width), min(top + crop.shape[0], height)
         if x1 > x0 and y1 > y0:
             full[y0:y1, x0:x1] = crop[y0 - top : y1 - top, x0 - left : x1 - left] > 0
-        frame_index = record.frame.frame_index if record.frame is not None else 0
-        objects.append(SamObject(frame_index, record.object_id, (left, top, right, bottom), full))
+        objects.append(SamObject(frame_index, object_id, (left, top, right, bottom), full))
     return objects
 
 
@@ -110,31 +141,187 @@ def select_keyframes(aligned: list[np.ndarray], count: int, *, loop: bool) -> li
     return picks
 
 
+def action_window(
+    aligned: list[np.ndarray],
+    fps: float,
+    *,
+    smooth_s: float = config.ACTION_SMOOTH_S,
+    level: float = config.ACTION_LEVEL,
+    merge_gap_s: float = config.ACTION_MERGE_GAP_S,
+    pad_s: float = config.ACTION_PAD_S,
+) -> tuple[int, int]:
+    """Frames [start, end) of the strongest burst of motion: one jump or one attack inside a
+    clip that also has standing still (or several repeats). Falls back to the whole clip."""
+    n = len(aligned)
+    if n < 3:
+        return 0, n
+    motion = motion_curve(aligned)
+    k = max(1, round(smooth_s * fps))
+    smooth = np.convolve(motion, np.ones(k) / k, mode="same")
+    base, peak = float(np.median(smooth)), float(smooth.max())
+    if peak <= base:
+        return 0, n
+    active = smooth > base + level * (peak - base)
+
+    # Runs of active steps, merging quiet gaps shorter than merge_gap_s.
+    runs: list[list[int]] = []
+    gap = round(merge_gap_s * fps)
+    for i in np.flatnonzero(active):
+        if runs and i - runs[-1][1] <= gap:
+            runs[-1][1] = int(i)
+        else:
+            runs.append([int(i), int(i)])
+    best = max(runs, key=lambda r: float(motion[r[0] : r[1] + 1].sum()))
+    pad = round(pad_s * fps)
+    # Step i is the change from frame i to i+1, so the run covers frames best[0]..best[1]+1.
+    return max(0, best[0] - pad), min(n, best[1] + 2 + pad)
+
+
 def find_cycle(
     aligned: list[np.ndarray],
     *,
     min_frames: int = config.CYCLE_MIN_FRAMES,
     min_similarity: float = config.CYCLE_MIN_SIMILARITY,
+    max_frames: int | None = None,
 ) -> int | None:
     """Length of the first full motion cycle starting at frame 0, or None if no loop is found.
 
-    A cycle ends at the first frame k that looks like frame 0 again (local IoU peak above
-    min_similarity) after the shape has first moved away from frame 0.
+    A cycle ends at the first frame k that looks like frame 0 again (a local IoU peak) after
+    the shape has first moved away. "Away" and "back" are relative to how far this clip moves
+    within max_frames, so a subtle idle bob and a big walk stride both work.
     """
     from actsprite.verify import mask_iou
 
+    if max_frames is not None:
+        aligned = aligned[: max_frames + 1]
     sim = [mask_iou(aligned[0], m) for m in aligned]
+    if len(sim) < 3:
+        return None
+    spread = 1.0 - min(sim[1:])
+    if spread < config.CYCLE_MIN_CHANGE:
+        return None  # nothing moves: no loop to find
+    away = 1.0 - config.CYCLE_AWAY_SHARE * spread
+    back = max(min_similarity, 1.0 - config.CYCLE_RETURN_SHARE * spread)
     moved_away = False
     for k in range(1, len(sim)):
-        if sim[k] < min_similarity:
+        if sim[k] < away:
             moved_away = True
             continue
-        if not moved_away or k < min_frames:
+        if not moved_away or k < min_frames or sim[k] < back:
             continue
         nxt = sim[k + 1] if k + 1 < len(sim) else -1.0
         if sim[k] >= sim[k - 1] and sim[k] >= nxt:
             return k
     return None
+
+
+def best_cycle(aligned: list[np.ndarray], fps: float) -> tuple[int, int] | None:
+    """(start, length) of the cleanest loop in the clip: tries every start frame and keeps the
+    cycle whose end matches its start best. Skips settling-in at the start (turning, stepping in).
+
+    The match also compares the frame after start with the frame after the end, so a pose seen
+    on the way out and again on the way back (same shape, opposite motion) is not a loop."""
+    from actsprite.verify import mask_iou
+
+    horizon = round(config.CYCLE_MAX_S * fps)
+    best: tuple[float, int, int] | None = None
+    for s in range(0, max(0, len(aligned) - config.CYCLE_MIN_FRAMES)):
+        k = find_cycle(aligned[s:], max_frames=horizon)
+        if k is None or s + k + 1 >= len(aligned):
+            continue
+        score = min(mask_iou(aligned[s], aligned[s + k]), mask_iou(aligned[s + 1], aligned[s + k + 1]))
+        if best is None or score > best[0]:
+            best = (score, s, k)
+    return None if best is None else (best[1], best[2])
+
+
+def edge_contact(mask: np.ndarray, edge_px: int = config.FULL_BODY_EDGE_PX) -> set[str]:
+    """Which frame edges ('top', 'bottom', 'left', 'right') the mask touches (within edge_px)."""
+    h, w = mask.shape
+    ys, xs = np.nonzero(mask)
+    if len(xs) == 0:
+        return set()
+    touched = set()
+    if ys.min() < edge_px:
+        touched.add("top")
+    if ys.max() >= h - edge_px:
+        touched.add("bottom")
+    if xs.min() < edge_px:
+        touched.add("left")
+    if xs.max() >= w - edge_px:
+        touched.add("right")
+    return touched
+
+
+def full_body_range(
+    track: dict[int, SamObject],
+    frame_count: int,
+    *,
+    edge_px: int = config.FULL_BODY_EDGE_PX,
+    min_frames: int = config.FULL_BODY_MIN_FRAMES,
+    edges: tuple[str, ...] = config.FULL_BODY_EDGES,
+) -> tuple[int, int] | None:
+    """Longest run [start, end) of frames where the subject is found and touches no frame edge.
+
+    Trims the walk to and from the phone that self-filmed clips start and end with.
+    Returns None when no run is at least min_frames long.
+    """
+    best: tuple[int, int] | None = None
+    start: int | None = None
+    for i in range(frame_count + 1):
+        ok = (i < frame_count and i in track and track[i].area > 0
+              and not edge_contact(track[i].mask, edge_px) & set(edges))
+        if ok and start is None:
+            start = i
+        elif not ok and start is not None:
+            if best is None or i - start > best[1] - best[0]:
+                best = (start, i)
+            start = None
+    if best is None or best[1] - best[0] < min_frames:
+        return None
+    return best
+
+
+@dataclass
+class PreparedVideo:
+    path: Path
+    frame_count: int
+    size: tuple[int, int]  # (width, height)
+    fps: float
+    source_indices: list[int]  # frame i of the prepared clip = this frame of the source
+
+
+def prepare_video(
+    src: Path,
+    dst: Path,
+    *,
+    max_short_side: int = config.SAM_VIDEO_MAX_SHORT_SIDE,
+    target_fps: float = config.SAM_VIDEO_FPS,
+) -> PreparedVideo:
+    """Re-encode a phone clip for SAM: MPEG-4 in an MP4, short side <= max_short_side,
+    every n-th frame so the rate is at most target_fps. Streams frames (no full clip in memory)."""
+    fps, _, (w, h) = video_info(src)
+    stride = max(1, round(fps / target_fps))
+    scale = min(1.0, max_short_side / min(w, h))
+    size = (int(w * scale) // 2 * 2, int(h * scale) // 2 * 2)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    writer = cv2.VideoWriter(str(dst), cv2.VideoWriter_fourcc(*"mp4v"), fps / stride, size)
+    cap = cv2.VideoCapture(str(src))
+    kept: list[int] = []
+    i = 0
+    while True:
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        if i % stride == 0:
+            writer.write(cv2.resize(bgr, size, interpolation=cv2.INTER_AREA))
+            kept.append(i)
+        i += 1
+    cap.release()
+    writer.release()
+    if not kept:
+        raise ValueError(f"No frames could be read from {src}; re-export it as H.264 MP4/MOV.")
+    return PreparedVideo(dst, len(kept), size, fps / stride, kept)
 
 
 def video_info(path: Path) -> tuple[float, int, tuple[int, int]]:

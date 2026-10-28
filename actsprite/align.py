@@ -66,6 +66,11 @@ def fit_to_canvas(
     return out_mask, out_image, scale
 
 
+def shared_scale(masks: list[np.ndarray], size: int, margin: int) -> float:
+    """One scale for a whole action: the largest that fits every frame, so a crouch stays shorter."""
+    return min(fit_scale(m, size, margin) for m in masks)
+
+
 def align_sequence(
     masks: list[np.ndarray],
     images: list[np.ndarray] | None = None,
@@ -78,7 +83,7 @@ def align_sequence(
     and the subject's travel across the video is removed (run in place)."""
     if not masks:
         raise ValueError("align_sequence needs at least one mask.")
-    scale = min(fit_scale(m, size, margin) for m in masks)
+    scale = shared_scale(masks, size, margin)
     out_masks: list[np.ndarray] = []
     out_images: list[np.ndarray] | None = [] if images is not None else None
     for i, m in enumerate(masks):
@@ -107,15 +112,17 @@ def pose_guide(
     margin: int = config.CELL_MARGIN * 2,
     fill: bool = False,
     head_fraction: float = 0.0,
+    scale: float | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Black-on-white line art of the subject only (no photo pixels leave this function).
 
     fill: paint the silhouette light gray under the lines (stronger pose signal).
     head_fraction: drop interior lines in the top part of the figure (e.g. 0.18) so
     facial features of a real actor never reach the image model.
+    scale: pass shared_scale(...) of the whole action so height changes (crouch, jump) survive.
     Returns (guide_rgb, guide_mask) on a size x size canvas, feet on the bottom row.
     """
-    fitted_mask, fitted_image, _ = fit_to_canvas(mask, size, margin=margin, image=image)
+    fitted_mask, fitted_image, _ = fit_to_canvas(mask, size, margin=margin, image=image, scale=scale)
     assert fitted_image is not None
     gray = cv2.cvtColor(fitted_image, cv2.COLOR_RGB2GRAY)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)

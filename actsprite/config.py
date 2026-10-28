@@ -63,6 +63,23 @@ SCORE_WEIGHT_PALETTE = 0.2
 CUTOUT_WHITE_TOLERANCE = 18  # pixels with min(R,G,B) > 255 - this count as background
 CUTOUT_MIN_SPECK = 0.0005  # drop islands smaller than this share of the image
 
+# --- Capture (video sent to SAM) ------------------------------------------------
+SAM_VIDEO_MAX_SHORT_SIDE = 480  # px; the SAM mask decoder is pure Python (cost ~ pixels), 480 still gives a ~700 px tall figure
+SAM_VIDEO_FPS = 30  # phone clips are often 60 fps; every 2nd frame is enough and halves the cost
+FULL_BODY_EDGE_PX = 2  # a mask this close to the frame edge counts as cut off
+FULL_BODY_MIN_FRAMES = 6  # shortest usable stretch with the whole body in frame
+FULL_BODY_EDGES = ("top", "bottom", "left", "right")  # edges the subject must not touch
+
+# --- Action window (one-shot actions such as jump/attack inside a longer clip) --------
+ACTION_SMOOTH_S = 0.15  # moving-average width on the motion curve
+ACTION_LEVEL = 0.25  # active = smoothed motion above median + this share of (max - median)
+ACTION_MERGE_GAP_S = 0.3  # quiet gaps shorter than this stay inside one action (e.g. the airborne part)
+ACTION_PAD_S = 0.1  # extra time kept before and after the action
+
 # --- Keyframes ----------------------------------------------------------------
 CYCLE_MIN_SIMILARITY = 0.75  # IoU with the first frame that closes a loop
 CYCLE_MIN_FRAMES = 6
+CYCLE_MAX_S = 2.5  # longest loop we look for (walk/run strides and idle bobs are shorter)
+CYCLE_MIN_CHANGE = 0.08  # 1 - IoU the clip must reach at least once, or it is "standing still"
+CYCLE_AWAY_SHARE = 0.5  # moved away = similarity fell by half of this clip's range
+CYCLE_RETURN_SHARE = 0.35  # back = similarity within 35% of the range from a perfect match

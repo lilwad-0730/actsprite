@@ -61,3 +61,47 @@ def test_select_keyframes_loop_excludes_end():
     picks = select_keyframes(aligned, 5, loop=True)
     assert picks[0] == 0 and len(picks) == 5 and picks == sorted(set(picks))
     assert select_keyframes(aligned, 20, loop=True) == list(range(PERIOD))
+
+
+def test_action_window_finds_the_burst():
+    from actsprite.capture import action_window
+
+    still = [walker(0, travel=0)] * 15
+    moving = [walker(t) for t in range(1, 11)]
+    aligned, _, _ = align_sequence(still + moving + [walker(10)] * 15, size=128, margin=8)
+    start, end = action_window(aligned, fps=10, smooth_s=0.1, pad_s=0.0, merge_gap_s=0.2)
+    assert 13 <= start <= 16 and 24 <= end <= 27
+
+
+def test_pose_guide_shared_scale_keeps_crouch_short():
+    from actsprite.align import pose_guide, shared_scale
+
+    stand, crouch = walker(0), walker(0, crouch=True)
+    img = np.full((*stand.shape, 3), 255, np.uint8)
+    s = shared_scale([stand, crouch], 128, 8)
+    _, gs = pose_guide(img, stand, size=128, margin=8, scale=s)
+    _, gc = pose_guide(img, crouch, size=128, margin=8, scale=s)
+    assert mask_bbox(gc)[3] == mask_bbox(gs)[3] == 128
+    assert mask_bbox(gc)[1] > mask_bbox(gs)[1]
+
+
+def test_best_cycle_skips_settling_in():
+    from actsprite.capture import best_cycle
+
+    settle = [walker(0, crouch=True)] * 3 + [walker(0)] * 2  # stepping into place first
+    frames = settle + [walker(t) for t in range(25)]
+    aligned, _, _ = align_sequence(frames, size=128, margin=8)
+    start, length = best_cycle(aligned, fps=10)
+    assert length == PERIOD and start >= len(settle) - 1
+
+
+def test_find_cycle_small_motion_loop():
+    # Subtle bob: only the arm moves a little, the body stays put.
+    def bob(t):
+        m = walker(0, travel=0)
+        dx = int(round(6 * math.sin(2 * math.pi * t / 8)))
+        m[100:150, 70 + dx : 80 + dx] = True
+        return m
+
+    aligned, _, _ = align_sequence([bob(t) for t in range(20)], size=128, margin=8)
+    assert find_cycle(aligned) == 8

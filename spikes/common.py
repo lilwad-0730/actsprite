@@ -132,11 +132,13 @@ def silhouette_overlay(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return out
 
 
-def tile(images: list[np.ndarray], cols: int, cell: int = 256) -> np.ndarray:
+def tile(images: list[np.ndarray], cols: int, cell: int | tuple[int, int] = 256) -> np.ndarray:
+    """Grid of images; cell is a square size or (height, width)."""
+    ch, cw = (cell, cell) if isinstance(cell, int) else cell
     rows = (len(images) + cols - 1) // cols
-    sheet = np.full((rows * cell, cols * cell, 3), 255, np.uint8)
+    sheet = np.full((rows * ch, cols * cw, 3), 255, np.uint8)
     for i, img in enumerate(images):
         r, c = divmod(i, cols)
-        resized = cv2.resize(img, (cell, cell), interpolation=cv2.INTER_AREA)
-        sheet[r * cell : (r + 1) * cell, c * cell : (c + 1) * cell] = resized
+        resized = cv2.resize(img, (cw, ch), interpolation=cv2.INTER_AREA)
+        sheet[r * ch : (r + 1) * ch, c * cw : (c + 1) * cw] = resized
     return sheet
