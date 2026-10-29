@@ -105,10 +105,11 @@ class FrameScores:
     identity: float  # critic, 1-10
     drift: float
     leg_motion: float | None = None  # see leg_motion(); None = not checked (first frame, still legs)
+    copied_from: str = "the previous frame"  # the reference image the legs are compared with
 
     @property
     def frozen(self) -> bool:
-        """Legs copied from the previous frame instead of following the pose guide."""
+        """Legs copied from the reference frame instead of following the pose guide."""
         return self.leg_motion is not None and self.leg_motion < config.LEG_MOTION_MIN
 
     @property
@@ -146,7 +147,7 @@ class FrameScores:
         if self.drift > config.PALETTE_DRIFT_MAX:
             out.append(f"palette drift {self.drift:.2f} > {config.PALETTE_DRIFT_MAX}")
         if self.frozen:
-            out.append(f"the legs are copied from the previous frame (moved {self.leg_motion:.2f} of the pose guide's "
+            out.append(f"the legs are copied from {self.copied_from} (moved {self.leg_motion:.2f} of the pose guide's "
                        f"change < {config.LEG_MOTION_MIN}): put every leg and paw exactly where the pose guide has it")
         return out
 
@@ -176,24 +177,28 @@ _CRITIC_RULES = (
 
 
 def critic_parts(
-    sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes, body: str = "biped"
+    sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes, body: str = "biped", anchor: bool = False
 ) -> list[str | bytes]:
-    """Prompt parts for the one-call art-director check (identity + pose)."""
+    """Prompt parts for the one-call art-director check (identity + pose). With anchor, `prev` is the
+    approved first frame of the animation rather than the frame just before."""
     parts: list[str | bytes] = [
         "You are a strict 2D game animation art director.",
         "REFERENCE SHEET:",
         sheet,
     ]
     if prev is not None:
-        parts += ["PREVIOUS APPROVED FRAME:", prev]
+        parts += ["FIRST APPROVED FRAME:" if anchor else "PREVIOUS APPROVED FRAME:", prev]
+    if prev is None:
+        clause = ""
+    elif anchor:
+        clause = " and consistent with the FIRST APPROVED FRAME"
+    else:
+        clause = " and visually continuous with the PREVIOUS APPROVED FRAME"
     parts += [
         "POSE GUIDE (plain figure):",
         guide,
         "CANDIDATE FRAME:",
         candidate,
-        _CRITIC_RULES.format(
-            prev_clause=" and visually continuous with the PREVIOUS APPROVED FRAME" if prev is not None else "",
-            pose_parts=BODIES[body].critic_pose_parts,
-        ),
+        _CRITIC_RULES.format(prev_clause=clause, pose_parts=BODIES[body].critic_pose_parts),
     ]
     return parts

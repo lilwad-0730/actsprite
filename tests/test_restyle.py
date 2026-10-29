@@ -20,6 +20,35 @@ def test_redraw_parts_with_and_without_previous_frame():
     assert "Fix from the art director: Make the plume red." in later[-1]
 
 
+def test_anchor_mode_names_the_first_frame_and_keeps_default_wording():
+    later = redraw_parts(b"S", b"G", b"P", "pixel")
+    anchored = redraw_parts(b"S", b"G", b"P", "pixel", anchor=True)
+    assert [p for p in anchored if isinstance(p, bytes)] == [b"S", b"P", b"G"]
+    assert "approved first frame" in anchored[2] and "approved first frame" in anchored[-1]
+    assert "previous animation frame" in later[2] and "first frame" not in later[-1]  # cached calls unchanged
+    assert redraw_parts(b"S", b"G", None, "pixel", anchor=True) == redraw_parts(b"S", b"G", None, "pixel")
+
+
+def test_hidden_legs_anchor_wording():
+    import pytest
+
+    legless = redraw_parts(b"S", b"G", b"P", "pixel", anchor=True, legs_hidden=True)
+    assert "legs painted out" in legless[2] and "Draw every leg only from the pose guide" in legless[-1]
+    with pytest.raises(ValueError):
+        redraw_parts(b"S", b"G", b"P", "pixel", legs_hidden=True)  # only the anchor can be legless
+
+
+def test_hide_legs_paints_the_bottom_of_the_figure_white():
+    from actsprite.restyle import hide_legs
+
+    rgb = np.zeros((100, 60, 3), np.uint8)
+    mask = np.zeros((100, 60), bool)
+    mask[20:80, 10:50] = True  # figure 60 px tall: bottom 35% = 21 rows -> rows 59..99 white
+    out = hide_legs(rgb, mask, share=0.35)
+    assert (out[59:] == 255).all() and (out[:59] == 0).all()
+    assert (rgb == 0).all()  # input untouched
+
+
 def test_flood_cutout_keeps_inner_white_and_thin_parts():
     img = np.full((100, 100, 3), 255, np.uint8)
     img[30:90, 40:60] = (90, 90, 120)  # body

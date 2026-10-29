@@ -13,6 +13,7 @@ import csv
 import hashlib
 import json
 import os
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,16 +37,19 @@ class BudgetExceeded(RuntimeError):
 
 
 class CostLog:
-    """Append-only CSV of every API call and its cost."""
+    """Append-only CSV of every API call and its cost. Safe to share between threads."""
+
+    _lock = threading.Lock()  # one lock for every log, so parallel redraws never interleave rows
 
     def __init__(self, path: Path = config.COST_LOG) -> None:
         self.path = path
 
     def total(self) -> float:
-        if not self.path.exists():
-            return 0.0
-        with self.path.open(newline="", encoding="utf-8") as f:
-            return sum(float(row["cost_usd"]) for row in csv.DictReader(f))
+        with self._lock:
+            if not self.path.exists():
+                return 0.0
+            with self.path.open(newline="", encoding="utf-8") as f:
+                return sum(float(row["cost_usd"]) for row in csv.DictReader(f))
 
     def append(
         self,
@@ -56,6 +60,12 @@ class CostLog:
         cached: bool,
         latency_s: float,
         note: str = "",
+    ) -> None:
+        with self._lock:
+            self._append_row(model, operation, units, cost_usd, cached, latency_s, note)
+
+    def _append_row(
+        self, model: str, operation: str, units: float, cost_usd: float, cached: bool, latency_s: float, note: str
     ) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         new_file = not self.path.exists()

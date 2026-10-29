@@ -11,7 +11,7 @@ Act out a move on your phone. Get a consistent, game-ready animated character in
 | Step | Meta model | Job |
 | --- | --- | --- |
 | Capture | SAM 3.1 (`sam-3.1`) | Track the actor in the clip, pixel masks per frame |
-| Redraw | Muse Image (`muse-image-1.0`) | Redraw each pose as your character, anchored to the previous frame |
+| Redraw | Muse Image (`muse-image-1.0`) | Redraw each pose as your character, anchored to the approved first frame so frames 1-7 are drawn at once |
 | Verify | Muse Spark 1.3 (`muse-spark-1.3`) + SAM 3.1 | Art-director critic scores identity; SAM re-checks the pose silhouette |
 
 ## Quick start (dev)

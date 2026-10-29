@@ -54,6 +54,9 @@ IDENTITY_MIN = 7  # Muse Spark identity score
 PALETTE_DRIFT_MAX = 0.15
 PALETTE_MATCH_DISTANCE = 40.0  # RGB distance that still counts as "in palette"
 MAX_REGENERATIONS = 2
+# Anchor mode: frames 1-7 all refer to the approved frame 0, so they are redrawn at the same time.
+# Muse Image allows 150 requests per minute per team (pricing-rate-limits page, checked 2026-10-30).
+REDRAW_WORKERS = 7
 # Legs copied from the previous frame (10/29 dog clip: 6 frozen frames passed IoU and the critic).
 # leg motion = leg-zone change from the previous frame, redraw / pose guide. Copies measured <= 0.16,
 # real moves >= 0.30 (pet, jump, attack: spikes/check_frozen_legs.py).

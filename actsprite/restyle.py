@@ -71,6 +71,29 @@ REDRAW_PROMPT = (
 PREV_LINE = (
     "Use image 2 (the previous animation frame) ONLY for line weight, shading and colors; do NOT copy its pose.\n"
 )
+# Anchor mode: every frame after the first refers to the approved first frame, so frames 1-7 can run at once.
+ANCHOR_LABEL = "Image 2 - approved first frame of this animation:"
+ANCHOR_LINE = (
+    "Use image 2 (the approved first frame of this animation) ONLY for line weight, shading and colors; "
+    "do NOT copy its pose.\n"
+)
+# Same, with the anchor's legs painted white (hide_legs): the model copied frame 0's legs in 8 of 14 frames (10/30).
+ANCHOR_NOLEGS_LABEL = "Image 2 - approved first frame of this animation, legs painted out on purpose:"
+ANCHOR_NOLEGS_LINE = (
+    "Use image 2 (the approved first frame of this animation, legs painted out on purpose) ONLY for line weight, "
+    "shading and colors; do NOT copy its pose. Draw every leg only from the pose guide.\n"
+)
+
+
+def hide_legs(rgb: np.ndarray, mask: np.ndarray, share: float = config.LEG_ZONE_SHARE) -> np.ndarray:
+    """Copy of `rgb` with the bottom `share` of the figure (from the mask's box) painted white, edge to edge."""
+    rows = np.flatnonzero(mask.any(axis=1))
+    if len(rows) == 0:
+        raise ValueError("Empty mask: nothing to hide.")
+    top, bottom = int(rows[0]), int(rows[-1]) + 1
+    out = rgb.copy()
+    out[bottom - int(share * (bottom - top)) :] = 255
+    return out
 
 
 def sheet_prompt(description: str, style: str, body: str = "biped") -> str:
@@ -79,18 +102,29 @@ def sheet_prompt(description: str, style: str, body: str = "biped") -> str:
 
 
 def redraw_parts(
-    sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = "", body: str = "biped"
+    sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = "", body: str = "biped",
+    anchor: bool = False, legs_hidden: bool = False,
 ) -> list[str | bytes]:
-    """Interleaved prompt for one frame: sheet, (previous approved frame), pose guide, instructions."""
+    """Interleaved prompt for one frame: sheet, (previous or, with anchor, first approved frame), pose guide,
+    instructions. legs_hidden: the anchor was sent through hide_legs."""
+    if legs_hidden and not anchor:
+        raise ValueError("legs_hidden only applies to the anchor (first) frame: pass anchor=True.")
+    label, ref_line = (
+        (ANCHOR_NOLEGS_LABEL, ANCHOR_NOLEGS_LINE) if legs_hidden
+        else (ANCHOR_LABEL, ANCHOR_LINE) if anchor
+        else ("Image 2 - previous animation frame:", PREV_LINE)
+    )
     parts: list[str | bytes] = ["Image 1 - character reference sheet:", sheet]
     if prev is not None:
-        parts += ["Image 2 - previous animation frame:", prev]
+        parts += [label, prev]
+    else:
+        ref_line = ""
     fix_line = f"Fix from the art director: {fix.strip()}\n" if fix.strip() else ""
     parts += [
         "Last image - pose guide:",
         guide,
-        REDRAW_PROMPT.format(prev_line=PREV_LINE if prev is not None else "", style=STYLES[style].prompt,
-                             fix=fix_line, pose_parts=BODIES[body].pose_parts),
+        REDRAW_PROMPT.format(prev_line=ref_line, style=STYLES[style].prompt, fix=fix_line,
+                             pose_parts=BODIES[body].pose_parts),
     ]
     return parts
 

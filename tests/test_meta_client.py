@@ -40,6 +40,16 @@ def test_cost_log_total(tmp_path):
     assert log.total() == pytest.approx(0.26)
 
 
+def test_cost_log_parallel_appends(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    log = CostLog(tmp_path / "cost.csv")
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda i: log.append("m", "op", 1, 0.01, False, 1.0, f"call {i}"), range(200)))
+    assert log.total() == pytest.approx(2.0)
+    assert len((tmp_path / "cost.csv").read_text(encoding="utf-8").splitlines()) == 201  # header + 200 rows
+
+
 def test_sam_video_minimum_billing():
     assert estimate_sam_video_cost(10) == pytest.approx(50 * config.PRICE_SAM_VIDEO_FRAME)
     assert estimate_sam_video_cost(120) == pytest.approx(120 * config.PRICE_SAM_VIDEO_FRAME)

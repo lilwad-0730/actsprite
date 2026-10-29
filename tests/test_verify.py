@@ -87,6 +87,13 @@ def test_critic_parts_order():
     assert "PREVIOUS" not in " ".join(p for p in first if isinstance(p, str))
 
 
+def test_critic_anchor_wording():
+    anchored = critic_parts(b"S", b"P", b"G", b"C", anchor=True)
+    text = " ".join(p for p in anchored if isinstance(p, str))
+    assert "FIRST APPROVED FRAME" in text and "PREVIOUS" not in text
+    assert [p for p in anchored if isinstance(p, bytes)] == [b"S", b"P", b"G", b"C"]
+
+
 def test_critic_wording_follows_body():
     biped = critic_parts(b"S", None, b"G", b"C")[-1]
     assert "the arm positions and the torso lean. Ignore costume" in biped
@@ -119,3 +126,5 @@ def test_frozen_frame_fails_and_ranks_below_moving_one():
     assert "copied from the previous frame" in copied.failures()[0]
     assert moved.rank > copied.rank  # higher combined score, but frozen
     assert FrameScores(iou=0.7, pose=10, identity=10, drift=0.02).passed  # first frame: not checked
+    anchored = FrameScores(iou=0.7, pose=10, identity=10, drift=0.02, leg_motion=0.05, copied_from="the first frame")
+    assert "copied from the first frame" in anchored.failures()[0]

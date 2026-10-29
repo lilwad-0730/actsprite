@@ -11,13 +11,19 @@ Uses the SAM track saved by spike A (spikes/out/a_video/<clip>/track.npz), so no
 --mode gait : cleanest two-step stride (walk, run), with camera-distance size change removed.
 --character knight (biped) | hound (quadruped), e.g. the pet clip:
   .venv\\Scripts\\python -m spikes.spike_e_sequence pet --mode gait --character hound --redraw
+--anchor first (default): frame 0 first, then frames 1-7 all refer to frame 0 and are drawn at the same time.
+  Frame 0 is sent with its legs painted white, so the model cannot copy them (--show-anchor-legs: send it whole).
+--anchor previous: each frame refers to the one before, one at a time (the 10/28-10/29 runs).
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 import cv2
@@ -29,7 +35,7 @@ from actsprite.align import align_sequence, fit_to_canvas, pose_guide, shared_sc
 from actsprite.capture import SamObject, action_window, best_cycle, full_body_range, read_frames, select_keyframes
 from actsprite.meta_client import MetaClient
 from actsprite.pack import pixelate, upscale_nearest
-from actsprite.restyle import STYLES, redraw_parts, sheet_prompt, white_flood_cutout
+from actsprite.restyle import STYLES, hide_legs, redraw_parts, sheet_prompt, white_flood_cutout
 from actsprite.verify import (
     CRITIC_SCHEMA,
     FrameScores,
@@ -138,57 +144,120 @@ def make_sheet(client: MetaClient, out: Path, name: str) -> tuple[bytes, np.ndar
     return png, rgb, palette
 
 
+@dataclass(frozen=True)
+class Reference:
+    """The approved frame a redraw refers to: the previous frame, or frame 0 in anchor mode."""
+    png: bytes  # what the critic compares with
+    cut: np.ndarray  # its cutout, for the leg-motion check
+    guide_mask: np.ndarray  # the pose guide it was drawn from
+    anchor: bool
+    gen_png: bytes | None = None  # what Muse Image gets instead of `png` (frame 0 with its legs painted out)
+
+    @property
+    def legs_hidden(self) -> bool:
+        return self.gen_png is not None
+
+
+def redraw_frame(client: MetaClient, ch: Character, out: Path, tag: str, k: int,
+                 guide: tuple[np.ndarray, np.ndarray], sheet_png: bytes, palette: np.ndarray,
+                 ref: Reference | None) -> tuple[list[dict], bytes, np.ndarray]:
+    """Draw one frame, check it, redraw up to MAX_REGENERATIONS times; returns the rows and the best attempt."""
+    guide_rgb, guide_mask = guide
+    guide_png = png_bytes(guide_rgb)
+    anchor = ref is not None and ref.anchor
+    copied_from = "the first frame" if anchor else "the previous frame"
+    rows: list[dict] = []
+    fix = ""
+    use_ref = True  # dropped after a frozen-legs attempt: the model was copying that image
+    best: tuple[tuple, bytes, np.ndarray] | None = None
+    best_row: dict = {}
+    for attempt in range(config.MAX_REGENERATIONS + 1):
+        sent = (ref.gen_png or ref.png) if ref is not None and use_ref else None
+        legs_hidden = sent is not None and ref is not None and ref.legs_hidden
+        png, _ = client.generate_image(
+            redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden),
+            note=f"spikeE {tag} f{k} a{attempt}")
+        rgb = decode_rgb(png)
+        save_rgb(out / "redraw" / f"{k}_a{attempt}.png", rgb)
+        cut = cutout(rgb, ch)
+        cand = sam_mask(client, rgb, ch.sam_prompt, note=f"spikeE {tag} mask f{k} a{attempt}")
+        if cand is None or not cand.any():
+            cand = cut  # SAM sometimes returns nothing for a drawn figure (attack f3 a0)
+        iou = silhouette_iou(guide_mask, largest_component(cand))
+        motion = None if ref is None else leg_motion(ref.guide_mask, guide_mask, ref.cut, cut)
+        verdict, _ = client.critic(
+            critic_parts(sheet_png, None if ref is None else ref.png, guide_png, png, ch.body, anchor),
+            CRITIC_SCHEMA, note=f"spikeE {tag} critic f{k} a{attempt}")
+        scores = FrameScores(iou, float(verdict["pose_score"]), float(verdict["identity_score"]),
+                             palette_drift(rgb, cut, palette), motion, copied_from)
+        rows.append({"frame": k, "attempt": attempt, "with_prev": sent is not None, "iou": round(iou, 3),
+                     "pose": scores.pose, "identity": scores.identity, "drift": round(scores.drift, 3),
+                     "leg_motion": "" if motion is None else round(motion, 3),
+                     "combined": round(scores.combined, 3), "passed": scores.passed,
+                     "failures": "; ".join(scores.failures()), "issues": " | ".join(verdict["issues"]),
+                     "fix": verdict["fix_instruction"]})
+        print(rows[-1], flush=True)
+        if best is None or scores.rank > best[0]:
+            best = (scores.rank, png, rgb)
+            best_row = rows[-1]
+        if scores.passed:
+            break
+        fix = " ".join(filter(None, [verdict["fix_instruction"], *scores.failures()]))
+        if scores.frozen:
+            # Drop the reference even when its legs are hidden: keeping it made the dog copy the same stride
+            # again on 5 retries (10/30, spikes/REPORT.md Day 4 third round).
+            use_ref = False
+    assert best is not None
+    best_row["chosen"] = True
+    save_rgb(out / "redraw" / f"{k}.png", best[2])
+    return rows, best[1], best[2]
+
+
 def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndarray]], tag: str,
-           name: str) -> list[dict]:
+           name: str, anchor: str = "first", hide_anchor_legs: bool = True) -> tuple[list[dict], dict]:
+    """anchor="first": frame 0 first, then frames 1-7 all refer to frame 0 and are drawn at the same time
+    (hide_anchor_legs: Muse Image gets frame 0 with its legs painted white).
+    anchor="previous": each frame refers to the one before (one at a time); hide_anchor_legs is ignored."""
     ch = CHARACTERS[name]
     sheet_png, _, palette = make_sheet(client, OUT / "e_sequence", name)
     per_try = config.PRICE_IMAGE + config.PRICE_SAM_IMAGE + 0.011
     estimate(f"redraw {len(guides)} frames, up to {config.MAX_REGENERATIONS + 1} tries each",
              len(guides) * per_try * (config.MAX_REGENERATIONS + 1))
+    draw = partial(redraw_frame, client, ch, out, tag, sheet_png=sheet_png, palette=palette)
     rows: list[dict] = []
-    prev_png: bytes | None = None
-    prev_cut: np.ndarray | None = None  # cutout of the previous chosen frame, for the leg-motion check
-    for k, (guide_rgb, guide_mask) in enumerate(guides):
-        guide_png = png_bytes(guide_rgb)
-        fix = ""
-        use_prev = True  # dropped after a frozen-legs attempt: the model was copying that image
-        best: tuple[tuple, bytes, np.ndarray, np.ndarray] | None = None
-        for attempt in range(config.MAX_REGENERATIONS + 1):
-            ref = prev_png if use_prev else None
-            png, _ = client.generate_image(redraw_parts(sheet_png, guide_png, ref, ch.style, fix, ch.body),
-                                           note=f"spikeE {tag} f{k} a{attempt}")
-            rgb = decode_rgb(png)
-            save_rgb(out / "redraw" / f"{k}_a{attempt}.png", rgb)
-            cut = cutout(rgb, ch)
-            cand = sam_mask(client, rgb, ch.sam_prompt, note=f"spikeE {tag} mask f{k} a{attempt}")
-            if cand is None or not cand.any():
-                cand = cut  # SAM sometimes returns nothing for a drawn figure (attack f3 a0)
-            iou = silhouette_iou(guide_mask, largest_component(cand))
-            motion = None if prev_cut is None else leg_motion(guides[k - 1][1], guide_mask, prev_cut, cut)
-            verdict, _ = client.critic(critic_parts(sheet_png, prev_png, guide_png, png, ch.body), CRITIC_SCHEMA,
-                                       note=f"spikeE {tag} critic f{k} a{attempt}")
-            scores = FrameScores(iou, float(verdict["pose_score"]), float(verdict["identity_score"]),
-                                 palette_drift(rgb, cut, palette), motion)
-            rows.append({"frame": k, "attempt": attempt, "with_prev": ref is not None, "iou": round(iou, 3),
-                         "pose": scores.pose, "identity": scores.identity, "drift": round(scores.drift, 3),
-                         "leg_motion": "" if motion is None else round(motion, 3),
-                         "combined": round(scores.combined, 3), "passed": scores.passed,
-                         "failures": "; ".join(scores.failures()), "issues": " | ".join(verdict["issues"]),
-                         "fix": verdict["fix_instruction"]})
-            print(rows[-1])
-            if best is None or scores.rank > best[0]:
-                best = (scores.rank, png, rgb, cut)
-                best_row = rows[-1]
-            if scores.passed:
-                break
-            fix = " ".join(filter(None, [verdict["fix_instruction"], *scores.failures()]))
-            if scores.frozen:
-                use_prev = False
-        assert best is not None
-        _, png, rgb, prev_cut = best
-        best_row["chosen"] = True
-        save_rgb(out / "redraw" / f"{k}.png", rgb)
-        prev_png = png
+    chosen: list[np.ndarray] = []  # the chosen frames' RGB, in order
+    t0 = time.perf_counter()
+    if anchor == "previous":
+        ref = None
+        for k, guide in enumerate(guides):
+            r, png, rgb = draw(k, guide, ref=ref)
+            rows += r
+            chosen.append(rgb)
+            ref = Reference(png, cutout(rgb, ch), guide[1], anchor=False)
+        timing = {"redraw_seconds": round(time.perf_counter() - t0, 1)}
+    else:
+        r, png0, rgb0 = draw(0, guides[0], ref=None)
+        rows += r
+        t_first = time.perf_counter() - t0
+        cut0 = cutout(rgb0, ch)
+        gen_png = None
+        if hide_anchor_legs:
+            legless = hide_legs(rgb0, cut0)
+            save_rgb(out / "anchor_sent.png", legless)
+            gen_png = png_bytes(legless)
+        ref = Reference(png0, cut0, guides[0][1], anchor=True, gen_png=gen_png)
+        with ThreadPoolExecutor(max_workers=config.REDRAW_WORKERS) as pool:
+            done = list(pool.map(lambda k: draw(k, guides[k], ref=ref), range(1, len(guides))))
+        for r, _, _ in done:
+            rows += r
+        chosen = [rgb0] + [rgb for _, _, rgb in done]
+        timing = {"first_frame_seconds": round(t_first, 1), "redraw_seconds": round(time.perf_counter() - t0, 1)}
+    rows.sort(key=lambda r: (r["frame"], r["attempt"]))
+    # Neighbouring chosen frames, the way the animation plays: legs frozen between frame k-1 and k?
+    cuts = [cutout(rgb, ch) for rgb in chosen]
+    adjacent = [leg_motion(guides[k - 1][1], guides[k][1], cuts[k - 1], cuts[k]) for k in range(1, len(guides))]
+    timing["adjacent_leg_motion"] = [None if m is None else round(m, 3) for m in adjacent]
+    timing["adjacent_frozen"] = sum(m is not None and m < config.LEG_MOTION_MIN for m in adjacent)
     # Sprite cells: feet on the baseline, same scale for every frame (the canvas ratio).
     # Pixel styles are pixelated onto the sheet palette; hand-drawn styles keep the full-resolution lines.
     cells = []
@@ -205,7 +274,7 @@ def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndar
     frames = [Image.fromarray(c, "RGBA") for c in cells]
     bg = [Image.alpha_composite(Image.new("RGBA", f.size, (235, 235, 235, 255)), f).convert("RGB") for f in frames]
     bg[0].save(out / "preview.gif", save_all=True, append_images=bg[1:], duration=110, loop=0)
-    return rows
+    return rows, timing
 
 
 def main() -> None:
@@ -217,6 +286,12 @@ def main() -> None:
     ap.add_argument("--edges", default=",".join(config.FULL_BODY_EDGES),
                     help="frame edges the subject must not touch, e.g. left,right")
     ap.add_argument("--redraw", action="store_true")
+    ap.add_argument("--anchor", choices=["first", "previous"], default="first",
+                    help="first (default): frames 1-7 refer to frame 0 and are drawn at the same time; "
+                         "previous: each frame refers to the one before (one at a time)")
+    ap.add_argument("--show-anchor-legs", action="store_true",
+                    help="with --anchor first: send frame 0 whole. By default its legs are painted white, so "
+                         "their positions cannot be copied (the critic always sees the whole frame)")
     ap.add_argument("--out", help="output folder name under spikes/out/e_sequence (default: the clip name)")
     args = ap.parse_args()
 
@@ -249,16 +324,17 @@ def main() -> None:
 
     if args.redraw:
         client = MetaClient()
-        rows = redraw(client, out, guides, args.clip, args.character)
+        hide_legs_ = args.anchor == "first" and not args.show_anchor_legs
+        rows, timing = redraw(client, out, guides, args.out or args.clip, args.character, args.anchor, hide_legs_)
         with (out / "scores.csv").open("w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()) + ["chosen"])
+            w = csv.DictWriter(f, fieldnames=list(dict.fromkeys([*rows[0].keys(), "chosen"])))
             w.writeheader()
             w.writerows(rows)
         chosen = [r for r in rows if r.get("chosen")]
         info["redraw"] = {
-            "frames": len(chosen), "passed": sum(r["passed"] for r in chosen),
+            "anchor": args.anchor, "hide_anchor_legs": hide_legs_, "frames": len(chosen), "passed": sum(r["passed"] for r in chosen),
             "attempts": len(rows), "first_try_pass": sum(r["passed"] for r in rows if r["attempt"] == 0),
-            "spent_total_usd": round(client.cost_log.total(), 4),
+            **timing, "spent_total_usd": round(client.cost_log.total(), 4),
         }
         compare = [cv2.resize(g, (256, 256)) for g, _ in guides] + [
             decode_rgb((out / "redraw" / f"{k}.png").read_bytes()) for k in range(len(guides))]

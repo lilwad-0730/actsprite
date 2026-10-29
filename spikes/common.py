@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Any
 
@@ -107,10 +110,38 @@ def load_mask(path: Path) -> np.ndarray:
     return cv2.imread(str(path), cv2.IMREAD_GRAYSCALE) > 127
 
 
+_parse_pool: ProcessPoolExecutor | None = None
+_parse_pool_lock = threading.Lock()
+
+
+def _sam_parse_pool() -> ProcessPoolExecutor:
+    global _parse_pool
+    with _parse_pool_lock:
+        if _parse_pool is None:
+            _parse_pool = ProcessPoolExecutor(max_workers=config.REDRAW_WORKERS)
+        return _parse_pool
+
+
 def sam_mask(client: MetaClient, rgb: np.ndarray, prompt: str, note: str = "") -> np.ndarray | None:
-    """Largest SAM 3.1 match for `prompt` in a still image, as a full-size bool mask."""
+    """Largest SAM 3.1 match for `prompt` in a still image, as a full-size bool mask.
+
+    The SAM decoder is pure Python (about 9 s for a 1024 px redraw) and holds the GIL, so it runs in a
+    process pool: parallel redraws (anchor mode) would otherwise wait for each other here."""
+    global _parse_pool
     text, _ = client.segment(png_bytes(rgb), prompt, note=note)
-    obj = largest_object(parse_sam_output(text, (rgb.shape[1], rgb.shape[0]), video=False))
+    size = (rgb.shape[1], rgb.shape[0])
+    pool = _sam_parse_pool()
+    try:
+        objects = pool.submit(parse_sam_output, text, size, video=False, workers=1).result()
+    except BrokenProcessPool:
+        # A worker died (10/30 knight run, cause unknown; the same SAM text decodes fine). Start a new pool for
+        # the next calls and decode this one here, so one lost worker does not stop the whole action.
+        with _parse_pool_lock:
+            if _parse_pool is pool:
+                _parse_pool = None
+        print(f"[warn] SAM decode worker died ({note}); decoding in the main process", flush=True)
+        objects = parse_sam_output(text, size, video=False, workers=1)
+    obj = largest_object(objects)
     return obj.mask if obj is not None else None
 
 
