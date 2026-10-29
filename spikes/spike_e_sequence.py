@@ -7,13 +7,17 @@ Uses the SAM track saved by spike A (spikes/out/a_video/<clip>/track.npz), so no
   # plus Muse Image redraw with the Muse Spark + SAM check loop (~$0.02-0.07 per frame):
   .venv\\Scripts\\python -m spikes.spike_e_sequence jump --mode once --edges left,right --redraw
 
---mode once : strongest burst of motion (jump, attack); --mode loop : first full cycle (walk, idle).
+--mode once : strongest burst of motion (jump, attack); --mode loop : cleanest cycle (idle);
+--mode gait : cleanest two-step stride (walk, run), with camera-distance size change removed.
+--character knight (biped) | hound (quadruped), e.g. the pet clip:
+  .venv\\Scripts\\python -m spikes.spike_e_sequence pet --mode gait --character hound --redraw
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -21,7 +25,7 @@ import numpy as np
 from PIL import Image
 
 from actsprite import config
-from actsprite.align import align_sequence, fit_to_canvas, pose_guide, shared_scale
+from actsprite.align import align_sequence, fit_to_canvas, pose_guide, shared_scale, size_drift
 from actsprite.capture import SamObject, action_window, best_cycle, full_body_range, read_frames, select_keyframes
 from actsprite.meta_client import MetaClient
 from actsprite.pack import pixelate, upscale_nearest
@@ -32,13 +36,26 @@ from actsprite.verify import (
     critic_parts,
     extract_palette,
     largest_component,
+    leg_motion,
     palette_drift,
     silhouette_iou,
 )
 from spikes.common import OUT, decode_rgb, estimate, png_bytes, sam_mask, save_rgb, tile, write_json
 
-KNIGHT = ("an original young knight: fitted silver plate armor with blue cloth trim, red plume on the helmet, "
-          "short sword in a scabbard on the hip")
+@dataclass(frozen=True)
+class Character:
+    description: str
+    body: str  # key of restyle.BODIES
+    sam_prompt: str  # noun SAM uses to find the drawn character
+
+
+CHARACTERS = {
+    "knight": Character("an original young knight: fitted silver plate armor with blue cloth trim, red plume on the "
+                        "helmet, short sword in a scabbard on the hip", "biped", "knight"),
+    "hound": Character("an original hound companion for a knight: short sandy-gold fur, cream muzzle and belly, "
+                       "dark brown ear tips, a small silver chest plate with blue cloth trim, red leather collar",
+                       "quadruped", "dog"),
+}
 SPRITE_PX = 64  # pixel-art cell size after pixelate (CELL_SIZE / 4)
 
 
@@ -48,78 +65,95 @@ def masked_actor(rgb: np.ndarray, mask: np.ndarray, scale: float) -> np.ndarray:
     return img
 
 
-def choose_frames(masks: np.ndarray, fps: float, mode: str, edges: tuple[str, ...]) -> dict:
+def choose_frames(masks: np.ndarray, fps: float, mode: str, edges: tuple[str, ...]) -> tuple[dict, np.ndarray]:
+    """Keyframes plus a per-frame scale factor (1 unless walking/running, where it cancels the
+    subject moving toward or away from the camera; idle and one-shot actions stay in place)."""
     n = len(masks)
     track = {i: SamObject(i, "0", (0, 0, 1, 1), m) for i, m in enumerate(masks) if m.any()}
     rng = full_body_range(track, n, edges=edges)
     if rng is None:
         raise SystemExit("No stretch with the whole body in frame; try --edges left,right")
     lo, hi = rng
-    aligned, _, _ = align_sequence(list(masks[lo:hi]))
+    rel = np.ones(n)
+    if mode == "gait":
+        rel[lo:hi] = size_drift(list(masks[lo:hi]), fps)
+    aligned, _, _ = align_sequence(list(masks[lo:hi]), rel=rel[lo:hi])
     if mode == "once":
         s, e = action_window(aligned, fps)
         picks = select_keyframes(aligned[s:e], config.FRAMES_PER_ACTION, loop=False)
         cycle = None
     else:
-        found = best_cycle(aligned, fps)
+        found = best_cycle(aligned, fps, gait=mode == "gait")
         if found is None:
             raise SystemExit("No loop found in this clip.")
         s, cycle = found
         e = s + cycle
         picks = select_keyframes(aligned[s:e], config.FRAMES_PER_ACTION, loop=True)
     keys = [lo + s + p for p in picks]
-    return {"full_body": [lo, hi], "window": [lo + s, lo + e], "cycle_frames": cycle, "keyframes": keys,
-            "keyframe_seconds": [round(k / fps, 3) for k in keys]}
+    info = {"full_body": [lo, hi], "window": [lo + s, lo + e], "cycle_frames": cycle, "keyframes": keys,
+            "keyframe_seconds": [round(k / fps, 3) for k in keys],
+            "keyframe_size_fix": [round(float(rel[k]), 3) for k in keys]}
+    return info, rel
 
 
-def make_sheet(client: MetaClient, out: Path) -> tuple[bytes, np.ndarray, np.ndarray]:
-    estimate("character sheet (Muse Image)", config.PRICE_IMAGE)
-    png, _ = client.generate_image([sheet_prompt(KNIGHT, "pixel")], note="spikeE sheet")
+def make_sheet(client: MetaClient, out: Path, name: str) -> tuple[bytes, np.ndarray, np.ndarray]:
+    ch = CHARACTERS[name]
+    estimate(f"character sheet {name} (Muse Image)", config.PRICE_IMAGE)
+    png, _ = client.generate_image([sheet_prompt(ch.description, "pixel", ch.body)], note=f"spikeE sheet {name}")
     rgb = decode_rgb(png)
-    save_rgb(out / "sheet.png", rgb)
+    save_rgb(out / ("sheet.png" if name == "knight" else f"sheet_{name}.png"), rgb)
     palette = extract_palette(rgb, white_flood_cutout(rgb))
     return png, rgb, palette
 
 
-def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndarray]], tag: str) -> list[dict]:
-    sheet_png, _, palette = make_sheet(client, OUT / "e_sequence")
+def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndarray]], tag: str,
+           name: str) -> list[dict]:
+    ch = CHARACTERS[name]
+    sheet_png, _, palette = make_sheet(client, OUT / "e_sequence", name)
     per_try = config.PRICE_IMAGE + config.PRICE_SAM_IMAGE + 0.011
     estimate(f"redraw {len(guides)} frames, up to {config.MAX_REGENERATIONS + 1} tries each",
              len(guides) * per_try * (config.MAX_REGENERATIONS + 1))
     rows: list[dict] = []
     prev_png: bytes | None = None
+    prev_cut: np.ndarray | None = None  # cutout of the previous chosen frame, for the leg-motion check
     for k, (guide_rgb, guide_mask) in enumerate(guides):
         guide_png = png_bytes(guide_rgb)
         fix = ""
-        best: tuple[float, bytes, np.ndarray, FrameScores] | None = None
+        use_prev = True  # dropped after a frozen-legs attempt: the model was copying that image
+        best: tuple[tuple, bytes, np.ndarray, np.ndarray] | None = None
         for attempt in range(config.MAX_REGENERATIONS + 1):
-            png, _ = client.generate_image(redraw_parts(sheet_png, guide_png, prev_png, "pixel", fix),
+            ref = prev_png if use_prev else None
+            png, _ = client.generate_image(redraw_parts(sheet_png, guide_png, ref, "pixel", fix, ch.body),
                                            note=f"spikeE {tag} f{k} a{attempt}")
             rgb = decode_rgb(png)
             save_rgb(out / "redraw" / f"{k}_a{attempt}.png", rgb)
             cut = white_flood_cutout(rgb)
-            cand = sam_mask(client, rgb, "knight", note=f"spikeE {tag} mask f{k} a{attempt}")
+            cand = sam_mask(client, rgb, ch.sam_prompt, note=f"spikeE {tag} mask f{k} a{attempt}")
             if cand is None or not cand.any():
                 cand = cut  # SAM sometimes returns nothing for a drawn figure (attack f3 a0)
             iou = silhouette_iou(guide_mask, largest_component(cand))
-            verdict, _ = client.critic(critic_parts(sheet_png, prev_png, guide_png, png), CRITIC_SCHEMA,
+            motion = None if prev_cut is None else leg_motion(guides[k - 1][1], guide_mask, prev_cut, cut)
+            verdict, _ = client.critic(critic_parts(sheet_png, prev_png, guide_png, png, ch.body), CRITIC_SCHEMA,
                                        note=f"spikeE {tag} critic f{k} a{attempt}")
             scores = FrameScores(iou, float(verdict["pose_score"]), float(verdict["identity_score"]),
-                                 palette_drift(rgb, cut, palette))
-            rows.append({"frame": k, "attempt": attempt, "iou": round(iou, 3), "pose": scores.pose,
-                         "identity": scores.identity, "drift": round(scores.drift, 3),
+                                 palette_drift(rgb, cut, palette), motion)
+            rows.append({"frame": k, "attempt": attempt, "with_prev": ref is not None, "iou": round(iou, 3),
+                         "pose": scores.pose, "identity": scores.identity, "drift": round(scores.drift, 3),
+                         "leg_motion": "" if motion is None else round(motion, 3),
                          "combined": round(scores.combined, 3), "passed": scores.passed,
                          "failures": "; ".join(scores.failures()), "issues": " | ".join(verdict["issues"]),
                          "fix": verdict["fix_instruction"]})
             print(rows[-1])
-            if best is None or scores.combined > best[0]:
-                best = (scores.combined, png, rgb, scores)
+            if best is None or scores.rank > best[0]:
+                best = (scores.rank, png, rgb, cut)
                 best_row = rows[-1]
             if scores.passed:
                 break
             fix = " ".join(filter(None, [verdict["fix_instruction"], *scores.failures()]))
+            if scores.frozen:
+                use_prev = False
         assert best is not None
-        _, png, rgb, scores = best
+        _, png, rgb, prev_cut = best
         best_row["chosen"] = True
         save_rgb(out / "redraw" / f"{k}.png", rgb)
         prev_png = png
@@ -144,7 +178,9 @@ def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndar
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("clip", help="folder name under spikes/out/a_video, e.g. jump")
-    ap.add_argument("--mode", choices=["once", "loop"], default="once")
+    ap.add_argument("--mode", choices=["once", "loop", "gait"], default="once",
+                    help="once: jump/attack; loop: idle; gait: walk/run (a cycle = two steps)")
+    ap.add_argument("--character", choices=sorted(CHARACTERS), default="knight")
     ap.add_argument("--edges", default=",".join(config.FULL_BODY_EDGES),
                     help="frame edges the subject must not touch, e.g. left,right")
     ap.add_argument("--redraw", action="store_true")
@@ -154,30 +190,32 @@ def main() -> None:
     out = OUT / "e_sequence" / args.clip
     z = np.load(src / "track.npz")
     masks, fps = z["masks"], float(z["fps"])
-    info = choose_frames(masks, fps, args.mode, tuple(e for e in args.edges.split(",") if e))
-    info.update({"clip": args.clip, "mode": args.mode, "fps": round(fps, 2), "edges": args.edges})
+    info, rel = choose_frames(masks, fps, args.mode, tuple(e for e in args.edges.split(",") if e))
+    info.update({"clip": args.clip, "mode": args.mode, "character": args.character, "fps": round(fps, 2),
+                 "edges": args.edges})
     print(info)
 
     frames = read_frames(src / "sam_input.mp4")
     keys = info["keyframes"]
     lo, hi = info["window"]
-    window_scale = shared_scale(list(masks[lo:hi]), config.CELL_SIZE, config.CELL_MARGIN)
-    guide_scale = shared_scale([masks[i] for i in keys], config.GUIDE_SIZE, config.CELL_MARGIN * 2)
+    window_scale = shared_scale(list(masks[lo:hi]), config.CELL_SIZE, config.CELL_MARGIN, rel[lo:hi])
+    guide_scale = shared_scale([masks[i] for i in keys], config.GUIDE_SIZE, config.CELL_MARGIN * 2, rel[keys])
     guides = [pose_guide(frames[i], masks[i], fill=True, head_fraction=config.GUIDE_HEAD_FRACTION,
-                         scale=guide_scale) for i in keys]
+                         scale=guide_scale * rel[i]) for i in keys]
     for k, (g, _) in enumerate(guides):
         save_rgb(out / "guides" / f"{k}.png", g)
-    actor = [masked_actor(frames[i], masks[i], window_scale) for i in keys]
+    actor = [masked_actor(frames[i], masks[i], window_scale * rel[i]) for i in keys]
     save_rgb(out / "keyframes_actor.png", tile(actor, cols=len(keys)))
     save_rgb(out / "keyframes_guides.png", tile([g for g, _ in guides], cols=len(keys)))
     # Every window frame, aligned, so the cut and the keyframe spacing can be checked by eye.
     every = list(range(lo, hi, max(1, (hi - lo) // 24)))
     save_rgb(out / "window_aligned.png",
-             tile([masked_actor(frames[i], masks[i], window_scale) for i in every], cols=12, cell=(192, 192)))
+             tile([masked_actor(frames[i], masks[i], window_scale * rel[i]) for i in every], cols=12,
+                  cell=(192, 192)))
 
     if args.redraw:
         client = MetaClient()
-        rows = redraw(client, out, guides, args.clip)
+        rows = redraw(client, out, guides, args.clip, args.character)
         with (out / "scores.csv").open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()) + ["chosen"])
             w.writeheader()

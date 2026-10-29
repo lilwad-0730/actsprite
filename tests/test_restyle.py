@@ -32,3 +32,17 @@ def test_flood_cutout_keeps_inner_white_and_thin_parts():
     assert not mask[2, 2]  # speck dropped
     assert not mask[5, 90]  # background removed
     assert mask.sum() == 60 * 20 + 10 * 2
+
+
+def test_biped_sheet_prompt_unchanged_and_quadruped_wording():
+    from actsprite.restyle import REDRAW_PROMPT
+
+    # Day 1 wording: keeps earlier knight calls cached (same prompt -> same sheet).
+    assert ("normal body proportions about 6 heads tall, no cape, no cloak, no long scarf or other large "
+            "flowing parts.") in sheet_prompt("x", "pixel")
+    assert "four-legged" in sheet_prompt("x", "pixel", "quadruped")
+    biped = redraw_parts(b"S", b"G", None, "pixel")[-1]
+    assert "the arm positions and the body lean.\n" in biped
+    dog = redraw_parts(b"S", b"G", None, "pixel", body="quadruped")[-1]
+    assert "front and hind legs" in dog and "arm" not in dog
+    assert "{" not in biped and "{" not in dog and "{pose_parts}" in REDRAW_PROMPT

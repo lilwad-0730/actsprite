@@ -10,6 +10,7 @@ from PIL import Image
 
 from actsprite import config
 from actsprite.align import fit_to_canvas, mask_bbox
+from actsprite.restyle import BODIES
 
 
 def mask_iou(a: np.ndarray, b: np.ndarray) -> float:
@@ -46,6 +47,23 @@ def silhouette_iou(
     the same baseline and mask centroids aligned. Specks are dropped and both shapes
     get a small tolerance so armour/outline thickness does not dominate."""
     return mask_iou(_normalise(a, height, tolerance), _normalise(b, height, tolerance))
+
+
+def leg_zone(mask: np.ndarray, height: int = 200, share: float = config.LEG_ZONE_SHARE) -> np.ndarray:
+    """The legs: bottom `share` of the figure, scaled to `height`, feet on the baseline, centred."""
+    placed = _normalise(mask, height, 0)
+    _, top, _, bottom = mask_bbox(placed)
+    placed[: bottom - int(share * (bottom - top))] = False
+    return placed
+
+
+def leg_motion(guide_prev: np.ndarray, guide: np.ndarray, cand_prev: np.ndarray, cand: np.ndarray) -> float | None:
+    """How far the candidate's legs moved from the previous frame, relative to how far the pose
+    guide's legs moved (about 1 = as much, near 0 = copied). None when the guide's legs barely move."""
+    g = 1.0 - mask_iou(leg_zone(guide_prev), leg_zone(guide))
+    if g < config.LEG_MOTION_GUIDE_MIN:
+        return None
+    return (1.0 - mask_iou(leg_zone(cand_prev), leg_zone(cand))) / g
 
 
 def extract_palette(image: np.ndarray, mask: np.ndarray, colors: int = config.PALETTE_SIZE) -> np.ndarray:
@@ -86,6 +104,17 @@ class FrameScores:
     pose: float  # critic, 1-10
     identity: float  # critic, 1-10
     drift: float
+    leg_motion: float | None = None  # see leg_motion(); None = not checked (first frame, still legs)
+
+    @property
+    def frozen(self) -> bool:
+        """Legs copied from the previous frame instead of following the pose guide."""
+        return self.leg_motion is not None and self.leg_motion < config.LEG_MOTION_MIN
+
+    @property
+    def rank(self) -> tuple[bool, bool, float]:
+        """Sort key for picking the best attempt: passed first, then legs that moved, then score."""
+        return (self.passed, not self.frozen, self.combined)
 
     @property
     def combined(self) -> float:
@@ -103,6 +132,7 @@ class FrameScores:
             and self.pose >= config.POSE_MIN
             and self.identity >= config.IDENTITY_MIN
             and self.drift <= config.PALETTE_DRIFT_MAX
+            and not self.frozen
         )
 
     def failures(self) -> list[str]:
@@ -115,6 +145,9 @@ class FrameScores:
             out.append(f"identity {self.identity:.0f} < {config.IDENTITY_MIN}")
         if self.drift > config.PALETTE_DRIFT_MAX:
             out.append(f"palette drift {self.drift:.2f} > {config.PALETTE_DRIFT_MAX}")
+        if self.frozen:
+            out.append(f"the legs are copied from the previous frame (moved {self.leg_motion:.2f} of the pose guide's "
+                       f"change < {config.LEG_MOTION_MIN}): put every leg and paw exactly where the pose guide has it")
         return out
 
 
@@ -134,7 +167,7 @@ _CRITIC_RULES = (
     "identity_score (1-10): is the CANDIDATE the same character as the REFERENCE SHEET{prev_clause}? "
     "Check head and body proportions, outfit details, colors, accessories and line style. Ignore the pose here.\n"
     "pose_score (1-10): does the CANDIDATE's pose match the POSE GUIDE? Compare only the angle of each leg and "
-    "knee, whether each foot is on the ground or in the air, the arm positions and the torso lean. Ignore costume, "
+    "knee, whether each foot is on the ground or in the air, {pose_parts}. Ignore costume, "
     "body proportions and art style here. 10 = same pose, 1 = completely different pose.\n"
     "issues: short list of problems. fix_instruction: one sentence telling the artist what to change "
     "(empty string if nothing).\n"
@@ -142,7 +175,9 @@ _CRITIC_RULES = (
 )
 
 
-def critic_parts(sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes) -> list[str | bytes]:
+def critic_parts(
+    sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes, body: str = "biped"
+) -> list[str | bytes]:
     """Prompt parts for the one-call art-director check (identity + pose)."""
     parts: list[str | bytes] = [
         "You are a strict 2D game animation art director.",
@@ -157,7 +192,8 @@ def critic_parts(sheet: bytes, prev: bytes | None, guide: bytes, candidate: byte
         "CANDIDATE FRAME:",
         candidate,
         _CRITIC_RULES.format(
-            prev_clause=" and visually continuous with the PREVIOUS APPROVED FRAME" if prev is not None else ""
+            prev_clause=" and visually continuous with the PREVIOUS APPROVED FRAME" if prev is not None else "",
+            pose_parts=BODIES[body].critic_pose_parts,
         ),
     ]
     return parts

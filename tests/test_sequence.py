@@ -105,3 +105,43 @@ def test_find_cycle_small_motion_loop():
 
     aligned, _, _ = align_sequence([bob(t) for t in range(20)], size=128, margin=8)
     assert find_cycle(aligned) == 8
+
+
+def two_legs(t: int, period: int = 20) -> np.ndarray:
+    """Side-view walker: near leg (thicker) and far leg swing in opposite phase, so after half a
+    period the silhouette nearly repeats with the legs swapped."""
+    m = np.zeros((240, 480), bool)
+    m[40:150, 200:300] = True  # body
+    swing = int(round(30 * math.sin(2 * math.pi * t / period)))
+    m[150:220, 240 + swing : 256 + swing] = True  # near leg
+    m[150:220, 242 - swing : 252 - swing] = True  # far leg
+    return m
+
+
+def test_gait_cycle_is_two_steps():
+    from actsprite.capture import best_cycle
+
+    aligned, _, _ = align_sequence([two_legs(t) for t in range(50)], size=128, margin=8)
+    assert find_cycle(aligned) == 10  # plain loop stops after one step (legs swapped)
+    assert find_cycle(aligned, gait=True) == 20  # a stride is two steps
+    _, length = best_cycle(aligned, fps=10, gait=True)
+    assert length == 20
+
+
+def test_size_drift_cancels_walking_toward_camera():
+    from actsprite.align import size_drift
+
+    def body(t):  # grows from 100 to 150 px tall over 60 frames, plus a fast 4 px bob
+        m = np.zeros((300, 300), bool)
+        h = int(100 + 50 * t / 59 + 4 * math.sin(2 * math.pi * t / 6))
+        m[280 - h : 280, 120:180] = True
+        return m
+
+    masks = [body(t) for t in range(60)]
+    rel = size_drift(masks, fps=30, window_s=1.0)
+    aligned, _, _ = align_sequence(masks, size=128, margin=8, rel=rel)
+    heights = [mask_bbox(a)[3] - mask_bbox(a)[1] for a in aligned[15:45]]  # away from the clip ends
+    plain, _, _ = align_sequence(masks, size=128, margin=8)
+    plain_h = [mask_bbox(a)[3] - mask_bbox(a)[1] for a in plain[15:45]]
+    assert max(heights) - min(heights) < 0.5 * (max(plain_h) - min(plain_h))
+    assert max(heights) - min(heights) >= 3  # the fast bob survives

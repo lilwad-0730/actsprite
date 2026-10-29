@@ -26,11 +26,26 @@ STYLES: dict[str, Style] = {
                  "single flat black fill", pixelate=False),
 }
 
+
+@dataclass(frozen=True)
+class Body:
+    proportions: str  # sheet rule that keeps the drawn silhouette comparable with the filmed one
+    pose_parts: str  # what the redraw must match besides legs and feet
+    critic_pose_parts: str  # the same, for the art-director check
+
+
+# Biped strings are the Day 1 wording unchanged, so earlier knight calls stay cached.
+BODIES: dict[str, Body] = {
+    "biped": Body("normal body proportions about 6 heads tall",
+                  "the arm positions and the body lean", "the arm positions and the torso lean"),
+    "quadruped": Body("natural four-legged animal proportions with all four legs clearly visible",
+                      "which front and hind legs are forward, the head and neck line and the tail",
+                      "which front and hind legs are forward, the head and neck line and the tail"),
+}
+
 # Day 1: large flowing parts hide the pose and break silhouette checks; normal
 # proportions keep the character's silhouette comparable with the actor's.
-SHEET_RULES = (
-    "normal body proportions about 6 heads tall, no cape, no cloak, no long scarf or other large flowing parts"
-)
+SHEET_RULES = "no cape, no cloak, no long scarf or other large flowing parts"
 
 SHEET_PROMPT = (
     "Original character design for a 2D side-scrolling game: {description}, {rules}. "
@@ -41,7 +56,7 @@ SHEET_PROMPT = (
 REDRAW_PROMPT = (
     "Redraw the character from image 1 in the EXACT pose of the pose guide (the last image). "
     "The pose guide is the only source of the pose: match the angle of every limb, where each foot and knee is, "
-    "the arm positions and the body lean.\n"
+    "{pose_parts}.\n"
     "Keep the character's design, outfit and colors identical to image 1.\n"
     "{prev_line}"
     "Full body, side view, facing right, feet touching the bottom edge like the pose guide.\n"
@@ -53,12 +68,13 @@ PREV_LINE = (
 )
 
 
-def sheet_prompt(description: str, style: str) -> str:
-    return SHEET_PROMPT.format(description=description, rules=SHEET_RULES, style=STYLES[style].prompt)
+def sheet_prompt(description: str, style: str, body: str = "biped") -> str:
+    rules = f"{BODIES[body].proportions}, {SHEET_RULES}"
+    return SHEET_PROMPT.format(description=description, rules=rules, style=STYLES[style].prompt)
 
 
 def redraw_parts(
-    sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = ""
+    sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = "", body: str = "biped"
 ) -> list[str | bytes]:
     """Interleaved prompt for one frame: sheet, (previous approved frame), pose guide, instructions."""
     parts: list[str | bytes] = ["Image 1 - character reference sheet:", sheet]
@@ -69,7 +85,7 @@ def redraw_parts(
         "Last image - pose guide:",
         guide,
         REDRAW_PROMPT.format(prev_line=PREV_LINE if prev is not None else "", style=STYLES[style].prompt,
-                             fix=fix_line),
+                             fix=fix_line, pose_parts=BODIES[body].pose_parts),
     ]
     return parts
 

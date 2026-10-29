@@ -54,6 +54,12 @@ IDENTITY_MIN = 7  # Muse Spark identity score
 PALETTE_DRIFT_MAX = 0.15
 PALETTE_MATCH_DISTANCE = 40.0  # RGB distance that still counts as "in palette"
 MAX_REGENERATIONS = 2
+# Legs copied from the previous frame (10/29 dog clip: 6 frozen frames passed IoU and the critic).
+# leg motion = leg-zone change from the previous frame, redraw / pose guide. Copies measured <= 0.16,
+# real moves >= 0.30 (pet, jump, attack: spikes/check_frozen_legs.py).
+LEG_ZONE_SHARE = 0.35  # bottom share of the figure height counted as legs
+LEG_MOTION_MIN = 0.25
+LEG_MOTION_GUIDE_MIN = 0.10  # guide legs changed less than this (idle): nothing to check
 SCORE_WEIGHT_IOU = 0.3
 SCORE_WEIGHT_POSE = 0.2
 SCORE_WEIGHT_IDENTITY = 0.3
@@ -83,3 +89,7 @@ CYCLE_MAX_S = 2.5  # longest loop we look for (walk/run strides and idle bobs ar
 CYCLE_MIN_CHANGE = 0.08  # 1 - IoU the clip must reach at least once, or it is "standing still"
 CYCLE_AWAY_SHARE = 0.5  # moved away = similarity fell by half of this clip's range
 CYCLE_RETURN_SHARE = 0.35  # back = similarity within 35% of the range from a perfect match
+# Walk/run: one stride = two steps. Half way the silhouette nearly matches the start again (the
+# other leg leads), so a stride needs a mid peak that climbs this share from the trough to the end match.
+GAIT_MID_SHARE = 0.5
+DRIFT_SMOOTH_S = 1.0  # walk/run: height smoothed this long counts as camera distance and is removed

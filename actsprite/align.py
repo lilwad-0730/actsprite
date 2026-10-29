@@ -66,9 +66,24 @@ def fit_to_canvas(
     return out_mask, out_image, scale
 
 
-def shared_scale(masks: list[np.ndarray], size: int, margin: int) -> float:
-    """One scale for a whole action: the largest that fits every frame, so a crouch stays shorter."""
-    return min(fit_scale(m, size, margin) for m in masks)
+def size_drift(masks: list[np.ndarray], fps: float, window_s: float = config.DRIFT_SMOOTH_S) -> np.ndarray:
+    """Per-frame factor that cancels slow size change (the subject walking toward or away from
+    the camera): 1 / height smoothed over window_s, relative to its median. Multiply the shared
+    scale by it. Changes faster than the window (the bob within a step) are kept."""
+    heights = np.array([mask_bbox(m)[3] - mask_bbox(m)[1] for m in masks], float)
+    k = max(1, round(window_s * fps)) | 1  # odd width, centred
+    smooth = np.convolve(np.pad(heights, k // 2, mode="edge"), np.ones(k) / k, mode="valid")
+    return float(np.median(smooth)) / smooth
+
+
+def shared_scale(
+    masks: list[np.ndarray], size: int, margin: int, rel: np.ndarray | list[float] | None = None
+) -> float:
+    """One scale for a whole action: the largest that fits every frame, so a crouch stays shorter.
+    With `rel` (from size_drift) frame i is drawn at scale * rel[i]."""
+    if rel is None:
+        rel = [1.0] * len(masks)
+    return min(fit_scale(m, size, margin) / r for m, r in zip(masks, rel))
 
 
 def align_sequence(
@@ -77,17 +92,22 @@ def align_sequence(
     *,
     size: int = config.CELL_SIZE,
     margin: int = config.CELL_MARGIN,
+    rel: np.ndarray | list[float] | None = None,
 ) -> tuple[list[np.ndarray], list[np.ndarray] | None, float]:
     """Put every frame of one action in place on the same canvas with ONE scale
     (set by the frame that needs the most room), so height changes between frames survive
-    and the subject's travel across the video is removed (run in place)."""
+    and the subject's travel across the video is removed (run in place).
+    `rel` (from size_drift) also removes the camera-distance change in walk/run clips."""
     if not masks:
         raise ValueError("align_sequence needs at least one mask.")
-    scale = shared_scale(masks, size, margin)
+    if rel is None:
+        rel = [1.0] * len(masks)
+    scale = shared_scale(masks, size, margin, rel)
     out_masks: list[np.ndarray] = []
     out_images: list[np.ndarray] | None = [] if images is not None else None
     for i, m in enumerate(masks):
-        fm, fi, _ = fit_to_canvas(m, size, margin=margin, image=None if images is None else images[i], scale=scale)
+        fm, fi, _ = fit_to_canvas(m, size, margin=margin, image=None if images is None else images[i],
+                                  scale=scale * rel[i])
         out_masks.append(fm)
         if out_images is not None:
             assert fi is not None

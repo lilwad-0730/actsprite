@@ -85,3 +85,37 @@ def test_critic_parts_order():
     first = critic_parts(b"S", None, b"G", b"C")
     assert [p for p in first if isinstance(p, bytes)] == [b"S", b"G", b"C"]
     assert "PREVIOUS" not in " ".join(p for p in first if isinstance(p, str))
+
+
+def test_critic_wording_follows_body():
+    biped = critic_parts(b"S", None, b"G", b"C")[-1]
+    assert "the arm positions and the torso lean. Ignore costume" in biped
+    dog = critic_parts(b"S", None, b"G", b"C", body="quadruped")[-1]
+    assert "front and hind legs" in dog and "arm positions" not in dog
+
+
+def _stance(swing: int, thick: int = 0) -> np.ndarray:
+    """Side-view body with two legs; `swing` moves them apart, `thick` thickens them (drawn vs real)."""
+    m = np.zeros((300, 400), bool)
+    m[60:170, 120:280] = True
+    m[170:260, 180 + swing : 196 + swing + thick] = True
+    m[170:260, 210 - swing : 226 - swing + thick] = True
+    return m
+
+
+def test_leg_motion_flags_copied_legs():
+    from actsprite.verify import leg_motion
+
+    g0, g1 = _stance(0), _stance(25)
+    assert leg_motion(g0, g1, _stance(0, 6), _stance(0, 6)) < 0.1  # copied: drawn legs did not move
+    assert leg_motion(g0, g1, _stance(0, 6), _stance(25, 6)) > 0.6  # followed the guide
+    assert leg_motion(g0, g0, _stance(0, 6), _stance(0, 6)) is None  # guide still (idle): no check
+
+
+def test_frozen_frame_fails_and_ranks_below_moving_one():
+    copied = FrameScores(iou=0.7, pose=10, identity=10, drift=0.02, leg_motion=0.05)
+    moved = FrameScores(iou=0.5, pose=8, identity=10, drift=0.02, leg_motion=0.8)
+    assert copied.frozen and not copied.passed
+    assert "copied from the previous frame" in copied.failures()[0]
+    assert moved.rank > copied.rank  # higher combined score, but frozen
+    assert FrameScores(iou=0.7, pose=10, identity=10, drift=0.02).passed  # first frame: not checked

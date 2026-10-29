@@ -183,12 +183,16 @@ def find_cycle(
     min_frames: int = config.CYCLE_MIN_FRAMES,
     min_similarity: float = config.CYCLE_MIN_SIMILARITY,
     max_frames: int | None = None,
+    gait: bool = False,
 ) -> int | None:
     """Length of the first full motion cycle starting at frame 0, or None if no loop is found.
 
     A cycle ends at the first frame k that looks like frame 0 again (a local IoU peak) after
     the shape has first moved away. "Away" and "back" are relative to how far this clip moves
     within max_frames, so a subtle idle bob and a big walk stride both work.
+
+    gait=True (walk/run): from the side the silhouette after one step looks like the start with
+    the legs swapped, so the cycle must also contain that half-way match (two steps = one stride).
     """
     from actsprite.verify import mask_iou
 
@@ -210,12 +214,19 @@ def find_cycle(
         if not moved_away or k < min_frames or sim[k] < back:
             continue
         nxt = sim[k + 1] if k + 1 < len(sim) else -1.0
-        if sim[k] >= sim[k - 1] and sim[k] >= nxt:
+        if sim[k] >= sim[k - 1] and sim[k] >= nxt and (not gait or _has_mid_step(sim, k)):
             return k
     return None
 
 
-def best_cycle(aligned: list[np.ndarray], fps: float) -> tuple[int, int] | None:
+def _has_mid_step(sim: list[float], k: int) -> bool:
+    """True if the similarity curve climbs back up half way through the cycle (the other step)."""
+    trough = min(sim[1:k])
+    mid = max(sim[round(0.35 * k) : round(0.65 * k) + 1])
+    return mid - trough >= config.GAIT_MID_SHARE * (sim[k] - trough)
+
+
+def best_cycle(aligned: list[np.ndarray], fps: float, gait: bool = False) -> tuple[int, int] | None:
     """(start, length) of the cleanest loop in the clip: tries every start frame and keeps the
     cycle whose end matches its start best. Skips settling-in at the start (turning, stepping in).
 
@@ -226,7 +237,7 @@ def best_cycle(aligned: list[np.ndarray], fps: float) -> tuple[int, int] | None:
     horizon = round(config.CYCLE_MAX_S * fps)
     best: tuple[float, int, int] | None = None
     for s in range(0, max(0, len(aligned) - config.CYCLE_MIN_FRAMES)):
-        k = find_cycle(aligned[s:], max_frames=horizon)
+        k = find_cycle(aligned[s:], max_frames=horizon, gait=gait)
         if k is None or s + k + 1 >= len(aligned):
             continue
         score = min(mask_iou(aligned[s], aligned[s + k]), mask_iou(aligned[s + 1], aligned[s + k + 1]))
