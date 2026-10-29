@@ -14,6 +14,7 @@ from actsprite import config
 class Style:
     prompt: str  # what we ask Muse Image to draw
     pixelate: bool  # pixel look is applied in post (pack.pixelate), not by the model
+    line_gaps: float = 0.0  # unfilled line art: close outline gaps up to this share of image height before cutout
 
 
 # Pixel art is drawn as a clean flat illustration and pixelated by us: the model's own
@@ -24,6 +25,10 @@ STYLES: dict[str, Style] = {
     "handdrawn": Style("hand-drawn 2D game art, clean ink outlines, flat cel shading", pixelate=False),
     "ink": Style("black ink brush silhouette with a few white highlight strokes, sumi-e inspired, "
                  "single flat black fill", pixelate=False),
+    # The inside of the figure is white like the background, so sketchy outlines must be closed first.
+    "lineart": Style("hand-drawn line art like a pencil sketch: thin dark sketchy lines on white paper, "
+                     "no color fill, no shading, same line weight as image 1", pixelate=False,
+                     line_gaps=config.CUTOUT_LINE_GAP),
 }
 
 
@@ -94,19 +99,32 @@ def white_flood_cutout(
     rgb: np.ndarray,
     tolerance: int = config.CUTOUT_WHITE_TOLERANCE,
     min_speck: float = config.CUTOUT_MIN_SPECK,
+    line_gaps: float = 0.0,
 ) -> np.ndarray:
     """Subject mask = everything not connected to the image border through near-white pixels.
 
     Keeps thin parts (swords, plumes) that a segmentation mask may drop, and keeps white
     highlights inside the character because they are not connected to the border.
+
+    line_gaps > 0 (unfilled line art, white inside): the flood may not pass within
+    line_gaps * height of a line, so small breaks in a sketchy outline do not let the
+    background leak into the figure; the background is then grown back up to the lines.
     """
     h, w = rgb.shape[:2]
     near_white = (rgb.min(axis=2) > 255 - tolerance).astype(np.uint8)
+    passable = near_white
+    kernel = None
+    if line_gaps > 0:
+        r = max(1, round(line_gaps * h))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+        passable = near_white & (cv2.dilate(1 - near_white, kernel) == 0)
     border = np.zeros((h, w), bool)
     border[0, :] = border[-1, :] = border[:, 0] = border[:, -1] = True
-    n, labels = cv2.connectedComponents(near_white, connectivity=4)
-    background_labels = np.unique(labels[border & (near_white == 1)])
+    n, labels = cv2.connectedComponents(passable, connectivity=4)
+    background_labels = np.unique(labels[border & (passable == 1)])
     background = np.isin(labels, background_labels[background_labels > 0])
+    if kernel is not None:
+        background = (cv2.dilate(background.astype(np.uint8), kernel) > 0) & (near_white == 1)
     subject = ~background
 
     n, labels, stats, _ = cv2.connectedComponentsWithStats(subject.astype(np.uint8), 8)

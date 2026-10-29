@@ -29,7 +29,7 @@ from actsprite.align import align_sequence, fit_to_canvas, pose_guide, shared_sc
 from actsprite.capture import SamObject, action_window, best_cycle, full_body_range, read_frames, select_keyframes
 from actsprite.meta_client import MetaClient
 from actsprite.pack import pixelate, upscale_nearest
-from actsprite.restyle import redraw_parts, sheet_prompt, white_flood_cutout
+from actsprite.restyle import STYLES, redraw_parts, sheet_prompt, white_flood_cutout
 from actsprite.verify import (
     CRITIC_SCHEMA,
     FrameScores,
@@ -47,6 +47,9 @@ class Character:
     description: str
     body: str  # key of restyle.BODIES
     sam_prompt: str  # noun SAM uses to find the drawn character
+    style: str = "pixel"  # key of restyle.STYLES
+    sheet_path: str | None = None  # user's own design used as the reference sheet (no sheet generation)
+    sheet_faces_left: bool = False  # mirror the user's sheet: every frame is drawn facing right
 
 
 CHARACTERS = {
@@ -55,8 +58,32 @@ CHARACTERS = {
     "hound": Character("an original hound companion for a knight: short sandy-gold fur, cream muzzle and belly, "
                        "dark brown ear tips, a small silver chest plate with blue cloth trim, red leather collar",
                        "quadruped", "dog"),
+    # User's drawing (10/29): plain bald young man in a fitted suit with seam lines, sketchy pencil lines, no fill.
+    "lineman": Character("a plain young man drawn as a pencil line sketch: bald head, slim build, fitted bodysuit "
+                         "with seam lines", "biped", "person", style="lineart",
+                         sheet_path=str(config.ROOT / "man in line.jpg"), sheet_faces_left=True),
 }
 SPRITE_PX = 64  # pixel-art cell size after pixelate (CELL_SIZE / 4)
+
+
+def cutout(rgb: np.ndarray, ch: Character) -> np.ndarray:
+    return white_flood_cutout(rgb, line_gaps=STYLES[ch.style].line_gaps)
+
+
+def user_sheet(ch: Character) -> np.ndarray:
+    """The user's design on a square white canvas, facing right, feet near the bottom (like a generated sheet)."""
+    assert ch.sheet_path is not None
+    bgr = cv2.imread(ch.sheet_path)
+    if bgr is None:
+        raise SystemExit(f"Character sheet not found: {ch.sheet_path}")
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    if ch.sheet_faces_left:
+        rgb = rgb[:, ::-1].copy()
+    h, w = rgb.shape[:2]
+    side = max(h, w)
+    canvas = np.full((side, side, 3), 255, np.uint8)
+    canvas[side - h :, (side - w) // 2 : (side - w) // 2 + w] = rgb
+    return canvas
 
 
 def masked_actor(rgb: np.ndarray, mask: np.ndarray, scale: float) -> np.ndarray:
@@ -98,11 +125,16 @@ def choose_frames(masks: np.ndarray, fps: float, mode: str, edges: tuple[str, ..
 
 def make_sheet(client: MetaClient, out: Path, name: str) -> tuple[bytes, np.ndarray, np.ndarray]:
     ch = CHARACTERS[name]
-    estimate(f"character sheet {name} (Muse Image)", config.PRICE_IMAGE)
-    png, _ = client.generate_image([sheet_prompt(ch.description, "pixel", ch.body)], note=f"spikeE sheet {name}")
-    rgb = decode_rgb(png)
+    if ch.sheet_path:  # the user's own design is the reference: nothing to generate
+        rgb = user_sheet(ch)
+        png = png_bytes(rgb)
+    else:
+        estimate(f"character sheet {name} (Muse Image)", config.PRICE_IMAGE)
+        png, _ = client.generate_image([sheet_prompt(ch.description, ch.style, ch.body)],
+                                       note=f"spikeE sheet {name}")
+        rgb = decode_rgb(png)
     save_rgb(out / ("sheet.png" if name == "knight" else f"sheet_{name}.png"), rgb)
-    palette = extract_palette(rgb, white_flood_cutout(rgb))
+    palette = extract_palette(rgb, cutout(rgb, ch))
     return png, rgb, palette
 
 
@@ -123,11 +155,11 @@ def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndar
         best: tuple[tuple, bytes, np.ndarray, np.ndarray] | None = None
         for attempt in range(config.MAX_REGENERATIONS + 1):
             ref = prev_png if use_prev else None
-            png, _ = client.generate_image(redraw_parts(sheet_png, guide_png, ref, "pixel", fix, ch.body),
+            png, _ = client.generate_image(redraw_parts(sheet_png, guide_png, ref, ch.style, fix, ch.body),
                                            note=f"spikeE {tag} f{k} a{attempt}")
             rgb = decode_rgb(png)
             save_rgb(out / "redraw" / f"{k}_a{attempt}.png", rgb)
-            cut = white_flood_cutout(rgb)
+            cut = cutout(rgb, ch)
             cand = sam_mask(client, rgb, ch.sam_prompt, note=f"spikeE {tag} mask f{k} a{attempt}")
             if cand is None or not cand.any():
                 cand = cut  # SAM sometimes returns nothing for a drawn figure (attack f3 a0)
@@ -158,18 +190,19 @@ def redraw(client: MetaClient, out: Path, guides: list[tuple[np.ndarray, np.ndar
         save_rgb(out / "redraw" / f"{k}.png", rgb)
         prev_png = png
     # Sprite cells: feet on the baseline, same scale for every frame (the canvas ratio).
-    cells, pixels = [], []
+    # Pixel styles are pixelated onto the sheet palette; hand-drawn styles keep the full-resolution lines.
+    cells = []
     for k in range(len(guides)):
         rgb = decode_rgb((out / "redraw" / f"{k}.png").read_bytes())
-        cut = white_flood_cutout(rgb)
-        m, img, _ = fit_to_canvas(cut, config.CELL_SIZE, image=rgb, scale=config.CELL_SIZE / rgb.shape[1])
+        m, img, _ = fit_to_canvas(cutout(rgb, ch), config.CELL_SIZE, image=rgb, scale=config.CELL_SIZE / rgb.shape[1])
         assert img is not None
         rgba = np.dstack([img, m.astype(np.uint8) * 255])
+        if STYLES[ch.style].pixelate:
+            rgba = upscale_nearest(pixelate(rgba, SPRITE_PX, palette), config.CELL_SIZE // SPRITE_PX)
         cells.append(rgba)
-        pixels.append(pixelate(rgba, SPRITE_PX, palette))
-    strip = np.hstack([upscale_nearest(p, 4) for p in pixels])
+    strip = np.hstack(cells)
     Image.fromarray(strip, "RGBA").save(out / "sprite_strip.png")
-    frames = [Image.fromarray(upscale_nearest(p, 4), "RGBA").convert("RGBA") for p in pixels]
+    frames = [Image.fromarray(c, "RGBA") for c in cells]
     bg = [Image.alpha_composite(Image.new("RGBA", f.size, (235, 235, 235, 255)), f).convert("RGB") for f in frames]
     bg[0].save(out / "preview.gif", save_all=True, append_images=bg[1:], duration=110, loop=0)
     return rows
@@ -184,10 +217,11 @@ def main() -> None:
     ap.add_argument("--edges", default=",".join(config.FULL_BODY_EDGES),
                     help="frame edges the subject must not touch, e.g. left,right")
     ap.add_argument("--redraw", action="store_true")
+    ap.add_argument("--out", help="output folder name under spikes/out/e_sequence (default: the clip name)")
     args = ap.parse_args()
 
     src = OUT / "a_video" / args.clip
-    out = OUT / "e_sequence" / args.clip
+    out = OUT / "e_sequence" / (args.out or args.clip)
     z = np.load(src / "track.npz")
     masks, fps = z["masks"], float(z["fps"])
     info, rel = choose_frames(masks, fps, args.mode, tuple(e for e in args.edges.split(",") if e))

@@ -46,3 +46,15 @@ def test_biped_sheet_prompt_unchanged_and_quadruped_wording():
     dog = redraw_parts(b"S", b"G", None, "pixel", body="quadruped")[-1]
     assert "front and hind legs" in dog and "arm" not in dog
     assert "{" not in biped and "{" not in dog and "{pose_parts}" in REDRAW_PROMPT
+
+
+def test_flood_cutout_closes_gaps_in_line_art():
+    img = np.full((200, 200, 3), 255, np.uint8)
+    img[40:162, 60:62] = img[40:162, 138:140] = 0  # left and right outline
+    img[40:42, 60:140] = img[160:162, 60:140] = 0  # top and bottom outline
+    img[100:104, 138:140] = 255  # 4 px break in the right side
+    plain = white_flood_cutout(img)
+    closed = white_flood_cutout(img, line_gaps=0.02)  # 4 px at 200 px
+    assert not plain[100, 100]  # background leaked into the unfilled figure
+    assert closed[100, 100] and closed[42:160, 62:138].all()
+    assert not closed[20, 20] and not closed[100, 150]  # outside stays background up to the line

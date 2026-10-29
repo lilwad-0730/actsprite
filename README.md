@@ -26,6 +26,8 @@ copy .env.example .env   # then paste your Meta Model API key into .env
 ## Built during the hackathon (Oct 26 – Nov 4, 2026)
 
 Everything in this repository was created during the hackathon period. See the git history.
+The line-art character design (`man in line.jpg`) was drawn for this project on 2026-10-29 by a friend of the author.
+The only outside input is the test footage listed under Credits.
 
 ## Credits and licenses
 
@@ -38,6 +40,10 @@ Everything in this repository was created during the hackathon period. See the g
 | [Pillow](https://python-pillow.org) | MIT-CMU | Image I/O, palette, packing |
 | [python-dotenv](https://github.com/theskumar/python-dotenv) | BSD-3-Clause | Load `.env` |
 | [pytest](https://pytest.org) | MIT | Tests |
+
+| Footage | Source | License | Use |
+| --- | --- | --- | --- |
+| `samples/pet.mp4` (not in the repo) | [Close-Up Shot of Dog Walking on the Street](https://www.pexels.com/video/close-up-shot-of-dog-walking-on-the-street-4300700/) by Luis Adolfo Burgos, Pexels | [Pexels License](https://www.pexels.com/license/) (free to use and modify) | Test input for the four-legged walk cycle. Only derived silhouettes and redrawn sprites appear in this repo; download the clip from the link to reproduce. |
 
 ## License
 

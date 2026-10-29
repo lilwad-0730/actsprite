@@ -68,6 +68,7 @@ SCORE_WEIGHT_PALETTE = 0.2
 # --- Cutout -----------------------------------------------------------------
 CUTOUT_WHITE_TOLERANCE = 18  # pixels with min(R,G,B) > 255 - this count as background
 CUTOUT_MIN_SPECK = 0.0005  # drop islands smaller than this share of the image
+CUTOUT_LINE_GAP = 0.006  # line-art styles: outline breaks up to this share of image height are closed (~10 px at 1600)
 
 # --- Capture (video sent to SAM) ------------------------------------------------
 SAM_VIDEO_MAX_SHORT_SIDE = 480  # px; the SAM mask decoder is pure Python (cost ~ pixels), 480 still gives a ~700 px tall figure
