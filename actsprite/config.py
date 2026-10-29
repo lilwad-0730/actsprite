@@ -77,6 +77,13 @@ FULL_BODY_EDGE_PX = 2  # a mask this close to the frame edge counts as cut off
 FULL_BODY_MIN_FRAMES = 6  # shortest usable stretch with the whole body in frame
 FULL_BODY_EDGES = ("top", "bottom", "left", "right")  # edges the subject must not touch
 
+# --- Web demo (Hugging Face Space) -----------------------------------------------------
+DEMO_SPEND_CAP_USD = 40.0  # the public Space stops calling Meta models once its cost log reaches this
+DEMO_MAX_CLIP_S = 5.0  # only the first seconds of an upload are used
+DEMO_SAM_FPS = 15  # frames per second sent to SAM from the web (decode runs on 2 shared CPUs)
+DEMO_SAM_CHECKS_PER_DAY = 5  # tracking checks per visitor per day
+DEMO_QUEUE_SIZE = 8  # visitors waiting at once; one job runs at a time
+
 # --- Action window (one-shot actions such as jump/attack inside a longer clip) --------
 ACTION_SMOOTH_S = 0.15  # moving-average width on the motion curve
 ACTION_LEVEL = 0.25  # active = smoothed motion above median + this share of (max - median)

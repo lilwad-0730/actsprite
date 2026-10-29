@@ -101,6 +101,9 @@ def test_prepare_video_strides_and_scales(tmp_path):
     frames = read_frames(pv.path)
     assert len(frames) == 10 and frames[0].shape == (90, 160, 3)
 
+    short = prepare_video(src, tmp_path / "short.mp4", max_short_side=90, target_fps=30, max_seconds=0.2)
+    assert short.source_indices == [0, 2, 4, 6, 8, 10]  # first 0.2 s of a 60 fps clip = 12 frames
+
 
 def test_parallel_video_parse_matches_serial():
     text = "".join(SAMPLE.replace("<0f>", f"<{i}f>") for i in range(6))

@@ -23,6 +23,17 @@ copy .env.example .env   # then paste your Meta Model API key into .env
 .venv\Scripts\python -m pytest
 ```
 
+## Web app
+
+Live preview: https://huggingface.co/spaces/Andy0730huggin/actsprite (showcase + SAM 3.1 tracking check).
+
+```powershell
+.venv\Scripts\python -m pip install gradio==6.31.0 spaces huggingface_hub
+.venv\Scripts\python app.py                    # local, http://localhost:7860
+.venv\Scripts\hf auth login                    # once, token stays on your machine
+.venv\Scripts\python scripts/deploy_space.py   # upload app.py, actsprite/, showcase/ to the Space
+```
+
 ## Built during the hackathon (Oct 26 – Nov 4, 2026)
 
 Everything in this repository was created during the hackathon period. See the git history.
@@ -40,6 +51,9 @@ The only outside input is the test footage listed under Credits.
 | [Pillow](https://python-pillow.org) | MIT-CMU | Image I/O, palette, packing |
 | [python-dotenv](https://github.com/theskumar/python-dotenv) | BSD-3-Clause | Load `.env` |
 | [pytest](https://pytest.org) | MIT | Tests |
+| [Gradio](https://github.com/gradio-app/gradio) | Apache-2.0 | Web app (`app.py`), installed by the Space from `sdk_version` |
+| [spaces](https://pypi.org/project/spaces/) | Apache-2.0 | Hugging Face ZeroGPU hosting hook (the app runs on CPU) |
+| [huggingface_hub](https://github.com/huggingface/huggingface_hub) | Apache-2.0 | `scripts/deploy_space.py` uploads the app to the Space |
 
 | Footage | Source | License | Use |
 | --- | --- | --- | --- |
