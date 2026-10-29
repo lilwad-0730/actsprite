@@ -94,3 +94,20 @@ def test_budget_guard_and_cache(tmp_path):
     (tmp_path / "cache" / f"{request_key(payload)}.json").write_text(json.dumps({"output": []}))
     result = client._call(payload, operation="t", estimate_usd=1.0, units=1, cost_fn=lambda d: 1.0)
     assert result.cached and result.cost_usd == 0.0
+
+
+def test_offline_mode_answers_from_cache_only(tmp_path, monkeypatch):
+    from actsprite.meta_client import CacheMiss
+
+    monkeypatch.delenv("META_API_KEY", raising=False)
+    log = CostLog(tmp_path / "cost.csv")
+    client = MetaClient(cache_dir=tmp_path / "cache", cost_log=log, offline=True)  # no key needed
+    payload = {"model": "m", "input": "cached"}
+    (tmp_path / "cache").mkdir()
+    (tmp_path / "cache" / f"{request_key(payload)}.json").write_text(json.dumps({"ok": 1}), encoding="utf-8")
+    call = dict(operation="op", estimate_usd=1.0, units=1, cost_fn=lambda d: 1.0)
+    assert client._call(payload, **call).data == {"ok": 1}
+    with pytest.raises(CacheMiss):
+        client._call({"model": "m", "input": "not cached"}, **call)  # never reaches the network
+    assert not log.path.exists()  # offline runs log nothing
+    assert client.calls == {"cached": 1, "new": 0}

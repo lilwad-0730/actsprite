@@ -21,9 +21,11 @@ from PIL import Image
 
 from actsprite import config
 from actsprite.align import mask_bbox
+from actsprite.characters import PRESETS as CHARACTERS
+from actsprite.characters import cutout
+from actsprite.images import save_rgb, tile
 from actsprite.verify import leg_motion
-from spikes.common import OUT, save_rgb, tile
-from spikes.spike_e_sequence import CHARACTERS, cutout
+from spikes.common import OUT
 
 BG = (235, 235, 235)
 

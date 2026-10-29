@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 from actsprite.capture import largest_object, main_track, parse_sam_output
@@ -121,3 +122,21 @@ def test_full_body_range_can_ignore_an_edge():
     track = {i: _obj(i, _body(10, 100)) for i in range(8)}  # feet touch the bottom in every frame
     assert full_body_range(track, 8) is None
     assert full_body_range(track, 8, edges=("left", "right", "top")) == (0, 8)
+
+
+def test_read_frames_at_returns_only_the_asked_frames(tmp_path):
+    import cv2
+
+    from actsprite.capture import read_frames, read_frames_at
+
+    src = tmp_path / "src.mp4"
+    writer = cv2.VideoWriter(str(src), cv2.VideoWriter_fourcc(*"mp4v"), 30, (64, 32))
+    for i in range(12):
+        writer.write(np.full((32, 64, 3), 20 * i, np.uint8))
+    writer.release()
+    every = read_frames(src)
+    some = read_frames_at(src, [7, 2, 11])
+    assert sorted(some) == [2, 7, 11]
+    assert all((some[i] == every[i]).all() for i in some)
+    with pytest.raises(ValueError):
+        read_frames_at(src, [3, 40])

@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-import threading
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +10,9 @@ import cv2
 import numpy as np
 
 from actsprite import config
-from actsprite.capture import largest_object, parse_sam_output
-from actsprite.meta_client import MetaClient
+from actsprite.images import decode_rgb, png_bytes, save_rgb, tile  # noqa: F401 (re-exported)
+from actsprite.meta_client import print_estimate as estimate  # noqa: F401 (re-exported)
+from actsprite.redraw import sam_mask  # noqa: F401 (re-exported)
 
 OUT = config.ROOT / "spikes" / "out"
 
@@ -83,24 +81,6 @@ def redraw_parts(
     return parts
 
 
-def png_bytes(rgb: np.ndarray) -> bytes:
-    ok, buf = cv2.imencode(".png", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-    assert ok
-    return buf.tobytes()
-
-
-def decode_rgb(data: bytes) -> np.ndarray:
-    bgr = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-    if bgr is None:
-        raise ValueError("Could not decode image bytes.")
-    return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-
-
-def save_rgb(path: Path, rgb: np.ndarray) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(path), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-
-
 def save_mask(path: Path, mask: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(path), mask.astype(np.uint8) * 255)
@@ -108,45 +88,6 @@ def save_mask(path: Path, mask: np.ndarray) -> None:
 
 def load_mask(path: Path) -> np.ndarray:
     return cv2.imread(str(path), cv2.IMREAD_GRAYSCALE) > 127
-
-
-_parse_pool: ProcessPoolExecutor | None = None
-_parse_pool_lock = threading.Lock()
-
-
-def _sam_parse_pool() -> ProcessPoolExecutor:
-    global _parse_pool
-    with _parse_pool_lock:
-        if _parse_pool is None:
-            _parse_pool = ProcessPoolExecutor(max_workers=config.REDRAW_WORKERS)
-        return _parse_pool
-
-
-def sam_mask(client: MetaClient, rgb: np.ndarray, prompt: str, note: str = "") -> np.ndarray | None:
-    """Largest SAM 3.1 match for `prompt` in a still image, as a full-size bool mask.
-
-    The SAM decoder is pure Python (about 9 s for a 1024 px redraw) and holds the GIL, so it runs in a
-    process pool: parallel redraws (anchor mode) would otherwise wait for each other here."""
-    global _parse_pool
-    text, _ = client.segment(png_bytes(rgb), prompt, note=note)
-    size = (rgb.shape[1], rgb.shape[0])
-    pool = _sam_parse_pool()
-    try:
-        objects = pool.submit(parse_sam_output, text, size, video=False, workers=1).result()
-    except BrokenProcessPool:
-        # A worker died (10/30 knight run, cause unknown; the same SAM text decodes fine). Start a new pool for
-        # the next calls and decode this one here, so one lost worker does not stop the whole action.
-        with _parse_pool_lock:
-            if _parse_pool is pool:
-                _parse_pool = None
-        print(f"[warn] SAM decode worker died ({note}); decoding in the main process", flush=True)
-        objects = parse_sam_output(text, size, video=False, workers=1)
-    obj = largest_object(objects)
-    return obj.mask if obj is not None else None
-
-
-def estimate(desc: str, usd: float) -> None:
-    print(f"[cost] {desc}: estimated ${usd:.3f} (cached calls are free)")
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -161,15 +102,3 @@ def silhouette_overlay(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     out[b & ~a] = (60, 180, 60)
     out[a & b] = (230, 200, 40)
     return out
-
-
-def tile(images: list[np.ndarray], cols: int, cell: int | tuple[int, int] = 256) -> np.ndarray:
-    """Grid of images; cell is a square size or (height, width)."""
-    ch, cw = (cell, cell) if isinstance(cell, int) else cell
-    rows = (len(images) + cols - 1) // cols
-    sheet = np.full((rows * ch, cols * cw, 3), 255, np.uint8)
-    for i, img in enumerate(images):
-        r, c = divmod(i, cols)
-        resized = cv2.resize(img, (cw, ch), interpolation=cv2.INTER_AREA)
-        sheet[r * ch : (r + 1) * ch, c * cw : (c + 1) * cw] = resized
-    return sheet

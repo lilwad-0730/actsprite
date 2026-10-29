@@ -1,11 +1,17 @@
-"""Pack: consistency post-processing (pixelate onto one palette) and, later, sprite sheet + JSON."""
+"""Pack: consistency post-processing (pixelate onto one palette), sprite sheet, JSON for Unity, preview GIF."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import cv2
 import numpy as np
+from PIL import Image
 
+from actsprite import config
+from actsprite.align import fit_to_canvas
 from actsprite.verify import nearest_palette_distance
+
 
 
 def map_to_palette(rgb: np.ndarray, palette: np.ndarray) -> np.ndarray:
@@ -45,3 +51,69 @@ def pixelate(rgba: np.ndarray, size: int, palette: np.ndarray | None = None) -> 
 def upscale_nearest(image: np.ndarray, factor: int) -> np.ndarray:
     """Blow up a pixel sprite for previews without blurring."""
     return cv2.resize(image, (image.shape[1] * factor, image.shape[0] * factor), interpolation=cv2.INTER_NEAREST)
+
+
+def sprite_cells(rgbs: list[np.ndarray], cuts: list[np.ndarray], palette: np.ndarray,
+                 pixel_size: int | None) -> list[np.ndarray]:
+    """One RGBA cell per redrawn frame: feet on the bottom row, horizontally centred, the same scale for every
+    frame (the redraw canvas width maps to the cell width). pixel_size: pixelate onto the sheet palette at
+    that size (pixel styles); None keeps the drawn lines at CELL_SIZE (hand-drawn styles)."""
+    cells = []
+    for rgb, cut in zip(rgbs, cuts):
+        m, img, _ = fit_to_canvas(cut, config.CELL_SIZE, image=rgb, scale=config.CELL_SIZE / rgb.shape[1])
+        assert img is not None
+        rgba = np.dstack([img, m.astype(np.uint8) * 255])
+        cells.append(pixelate(rgba, pixel_size, palette) if pixel_size else rgba)
+    return cells
+
+
+def export_cells(cells: list[np.ndarray], pixel_art: bool) -> list[np.ndarray]:
+    """Cells at the contract's grid size: pixel art is drawn at SPRITE_PIXEL_SIZE and each art pixel becomes a
+    square block of a CELL_PIXEL_ART cell (same look, sharper in engines); other styles stay at CELL_SIZE."""
+    if not pixel_art:
+        return cells
+    factor = config.CELL_PIXEL_ART // cells[0].shape[0]
+    return [upscale_nearest(c, factor) if factor > 1 else c for c in cells]
+
+
+def sheet_from_rows(rows: list[list[np.ndarray]]) -> np.ndarray:
+    """One action per row, frames left to right, fixed cells, transparent background."""
+    h, w = rows[0][0].shape[:2]
+    if any(c.shape[:2] != (h, w) for row in rows for c in row):
+        raise ValueError("Every frame of a character must have the same cell size.")
+    sheet = np.zeros((len(rows) * h, max(len(r) for r in rows) * w, 4), np.uint8)
+    for r, row in enumerate(rows):
+        for c, cell in enumerate(row):
+            sheet[r * h : (r + 1) * h, c * w : (c + 1) * w] = cell
+    return sheet
+
+
+def action_fps(mode: str) -> int:
+    """Contract defaults: idle (loop) 8 fps, every other action 12."""
+    return config.FPS_IDLE if mode == "loop" else config.FPS_ACTION
+
+
+def character_meta(character: str, style: str, cell: tuple[int, int], actions: list[dict]) -> dict:
+    """<name>_meta.json, the contract shared with the Unity importer (docs/02_product_spec.md 4.3):
+    `actions` in sheet row order, each with name, frames, fps, loop. Pivot is fixed at the feet."""
+    return {
+        "character": character,
+        "style": style,
+        "cell": {"width": cell[0], "height": cell[1]},
+        "pivot": {"x": 0.5, "y": 0.0},
+        "actions": [{"name": a["name"], "row": row, "frames": a["frames"], "fps": a["fps"], "loop": a["loop"]}
+                    for row, a in enumerate(actions)],
+    }
+
+
+def preview_gif(cells: list[np.ndarray], path: Path, fps: float, size: int = config.CELL_SIZE,
+                background: tuple[int, int, int] = (235, 235, 235)) -> None:
+    """Animated preview at the action's fps on a light grey background; small cells are blown up unblurred."""
+    frames = []
+    for cell in cells:
+        if cell.shape[0] < size:
+            cell = upscale_nearest(cell, max(1, size // cell.shape[0]))
+        rgba = Image.fromarray(cell, "RGBA")
+        frames.append(Image.alpha_composite(Image.new("RGBA", rgba.size, (*background, 255)), rgba).convert("RGB"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=round(1000 / fps), loop=0)

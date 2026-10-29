@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # --- Meta Model API -------------------------------------------------------
 BASE_URL = "https://api.meta.ai/v1"
 API_KEY_ENV = "META_API_KEY"
+OFFLINE_ENV = "ACTSPRITE_OFFLINE"  # "1": answer only from the cache, never call the API (replay, tests)
 MODEL_SAM = "sam-3.1"
 MODEL_IMAGE = "muse-image-1.0"
 MODEL_CRITIC = "muse-spark-1.3"
@@ -25,6 +26,7 @@ PRICE_CRITIC_INPUT_TOKEN = 1.25 / 1_000_000
 PRICE_CRITIC_OUTPUT_TOKEN = 4.25 / 1_000_000
 CRITIC_EST_INPUT_TOKENS = 6000  # used only for the pre-call estimate
 CRITIC_EST_OUTPUT_TOKENS = 400
+CRITIC_MEAN_USD = 0.022  # measured: mean of 161 critic calls (four images each), 10/29-10/30 runs
 
 BUDGET_HARD_STOP_USD = 140.0
 
@@ -45,6 +47,14 @@ GUIDE_SIZE = 512  # pose guide image sent to Muse Image
 GUIDE_FILL_GRAY = 205  # silhouette fill when the guide is drawn filled
 GUIDE_HEAD_FRACTION = 0.18  # top share of the figure with interior lines removed (no faces)
 PALETTE_SIZE = 24
+SPRITE_PIXEL_SIZE = 64  # pixel styles: the art is drawn at this resolution (the showcase look)
+# Output contract (docs/02_product_spec.md 4.1-4.3): cell 128 for pixel art (each art pixel = 2x2), else CELL_SIZE;
+# fps idle 8, every other action 12.
+CELL_PIXEL_ART = 128
+FPS_IDLE = 8
+FPS_ACTION = 12
+ACTION_ORDER = ("idle", "run", "walk", "jump", "attack")  # sheet rows; other actions follow alphabetically
+UNITY_IMPORTER = ROOT / "unity" / "ActSpriteImporter.cs"  # copied into the ZIP once it exists (10/31)
 
 # --- Verification loop (Day 1 values from spikes/REPORT.md; recalibrate 10-30) ---
 IOU_MIN = 0.55  # silhouette IoU, height-normalised, feet aligned, with tolerance

@@ -146,6 +146,11 @@ def critic_cost(data: dict[str, Any]) -> float:
     ) * config.PRICE_CRITIC_OUTPUT_TOKEN
 
 
+def print_estimate(desc: str, usd: float) -> None:
+    """Announce what a batch of calls may cost before making it (cached calls are free)."""
+    print(f"[cost] {desc}: estimated ${usd:.3f} (cached calls are free)", flush=True)
+
+
 def estimate_sam_video_cost(frame_count: int) -> float:
     return max(frame_count, config.SAM_VIDEO_MIN_FRAMES) * config.PRICE_SAM_VIDEO_FRAME
 
@@ -158,6 +163,10 @@ class CallResult:
     cached: bool
 
 
+class CacheMiss(RuntimeError):
+    """Offline mode needed a response that is not in the cache."""
+
+
 class MetaClient:
     def __init__(
         self,
@@ -165,16 +174,30 @@ class MetaClient:
         cache_dir: Path = config.CACHE_DIR,
         cost_log: CostLog | None = None,
         budget_usd: float = config.BUDGET_HARD_STOP_USD,
+        offline: bool | None = None,
     ) -> None:
+        """offline=True (or ACTSPRITE_OFFLINE=1): answer only from the cache, never call the API, need no key
+        and log nothing; a request that is not cached raises CacheMiss."""
         from dotenv import load_dotenv
-        from openai import OpenAI
 
         load_dotenv(config.ROOT / ".env")
+        self.offline = os.environ.get(config.OFFLINE_ENV) == "1" if offline is None else offline
+        self.cache_dir = cache_dir
+        self.cost_log = cost_log or CostLog()
+        self.budget_usd = budget_usd
+        self.calls = {"cached": 0, "new": 0}  # this client's calls so far: served from cache / sent to the API
+        self._calls_lock = threading.Lock()
+        self._client = None
+        if self.offline:
+            return
+        from openai import OpenAI
+
         key = api_key or os.environ.get(config.API_KEY_ENV, "").strip()
         if not key:
             raise MissingApiKey(
                 f"{config.API_KEY_ENV} is not set. Copy {config.ROOT / '.env.example'} to "
-                f"{config.ROOT / '.env'} and paste your Meta Model API key after '{config.API_KEY_ENV}='."
+                f"{config.ROOT / '.env'} and paste your Meta Model API key after '{config.API_KEY_ENV}='. "
+                f"Without a key: open the finished examples in examples/ and run the tests (see README)."
             )
         self._client = OpenAI(
             base_url=config.BASE_URL,
@@ -182,11 +205,12 @@ class MetaClient:
             timeout=config.REQUEST_TIMEOUT_S,
             max_retries=config.MAX_RETRIES,
         )
-        self.cache_dir = cache_dir
-        self.cost_log = cost_log or CostLog()
-        self.budget_usd = budget_usd
 
     # ------------------------------------------------------------------ core
+    def _count(self, kind: str) -> None:
+        with self._calls_lock:
+            self.calls[kind] += 1
+
     def check_budget(self, estimate_usd: float) -> None:
         spent = self.cost_log.total()
         if spent + estimate_usd > self.budget_usd:
@@ -209,10 +233,16 @@ class MetaClient:
         cache_file = self.cache_dir / f"{key}.json"
         if cache_file.exists():
             data = json.loads(cache_file.read_text(encoding="utf-8"))
-            self.cost_log.append(payload["model"], operation, units, 0.0, True, 0.0, note)
+            self._count("cached")
+            if not self.offline:
+                self.cost_log.append(payload["model"], operation, units, 0.0, True, 0.0, note)
             return CallResult(data, 0.0, 0.0, True)
+        if self.offline or self._client is None:
+            raise CacheMiss(f"Offline mode: no cached {operation} response for '{note}' (cache key {key[:12]}, "
+                            f"looked in {self.cache_dir}). Offline runs never call the Meta API.")
 
         self.check_budget(estimate_usd)
+        self._count("new")
         t0 = time.perf_counter()
         response = self._client.responses.create(**payload)
         latency = time.perf_counter() - t0

@@ -145,3 +145,15 @@ def test_size_drift_cancels_walking_toward_camera():
     plain_h = [mask_bbox(a)[3] - mask_bbox(a)[1] for a in plain[15:45]]
     assert max(heights) - min(heights) < 0.5 * (max(plain_h) - min(plain_h))
     assert max(heights) - min(heights) >= 3  # the fast bob survives
+
+
+def test_mode_follows_the_action_name():
+    import pytest
+
+    from actsprite.errors import PipelineError
+    from actsprite.sequence import mode_for
+
+    assert mode_for("jump") == "once" and mode_for("idle") == "loop" and mode_for("run") == "gait"
+    assert mode_for("dance", "loop") == "loop"
+    with pytest.raises(PipelineError):
+        mode_for("dance")  # unknown action without --mode

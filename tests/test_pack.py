@@ -39,3 +39,31 @@ def test_map_to_palette_and_upscale():
 def test_pixelate_rejects_rgb():
     with pytest.raises(ValueError):
         pixelate(np.zeros((8, 8, 3), np.uint8), 4)
+
+
+def test_contract_meta_rows_and_pivot():
+    from actsprite.pack import action_fps, character_meta
+
+    actions = [{"name": "idle", "frames": 8, "fps": action_fps("loop"), "loop": True},
+               {"name": "jump", "frames": 8, "fps": action_fps("once"), "loop": False}]
+    meta = character_meta("knight", "pixel", (128, 128), actions)
+    assert meta == {
+        "character": "knight", "style": "pixel", "cell": {"width": 128, "height": 128},
+        "pivot": {"x": 0.5, "y": 0.0},
+        "actions": [{"name": "idle", "row": 0, "frames": 8, "fps": 8, "loop": True},
+                    {"name": "jump", "row": 1, "frames": 8, "fps": 12, "loop": False}],
+    }
+
+
+def test_sheet_rows_and_pixel_cells():
+    from actsprite.pack import export_cells, sheet_from_rows
+
+    small = [np.full((64, 64, 4), v, np.uint8) for v in (10, 20)]
+    big = export_cells(small, pixel_art=True)
+    assert big[0].shape == (128, 128, 4) and (big[1] == 20).all()  # each art pixel -> 2x2
+    assert export_cells(small, pixel_art=False) is small
+    sheet = sheet_from_rows([big, big[:1]])
+    assert sheet.shape == (256, 256, 4)
+    assert (sheet[128:, 128:] == 0).all()  # the shorter row leaves transparent cells
+    with pytest.raises(ValueError):
+        sheet_from_rows([big, small])  # one cell size per character

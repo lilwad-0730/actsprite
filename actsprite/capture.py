@@ -350,6 +350,26 @@ def video_info(path: Path) -> tuple[float, int, tuple[int, int]]:
     return fps, count, size
 
 
+def read_frames_at(path: Path, indices: list[int]) -> dict[int, np.ndarray]:
+    """Only the given frames (RGB), read in one pass: a whole 16 s clip would be ~600 MB in memory."""
+    wanted = set(indices)
+    cap = cv2.VideoCapture(str(path))
+    frames: dict[int, np.ndarray] = {}
+    i = 0
+    while len(frames) < len(wanted):
+        ok, bgr = cap.read()
+        if not ok:
+            break
+        if i in wanted:
+            frames[i] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        i += 1
+    cap.release()
+    missing = wanted - frames.keys()
+    if missing:
+        raise ValueError(f"{path} has no frames {sorted(missing)[:5]} (it has {i}).")
+    return frames
+
+
 def read_frames(path: Path) -> list[np.ndarray]:
     """All frames as RGB arrays, in source order (SAM frame indices refer to these)."""
     cap = cv2.VideoCapture(str(path))
