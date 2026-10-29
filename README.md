@@ -1,5 +1,7 @@
 # ActSprite — Act it out. Play it in.
 
+[![繁體中文](https://img.shields.io/badge/語言-繁體中文-blue)](README.zh-TW.md)
+
 > Hackathon: Meta Global AI Developer Hackathon · Track: Indie Developer · Theme: **Build for Your World**
 
 Act out a move on your phone. Get a consistent, game-ready animated character in Unity.
