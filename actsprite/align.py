@@ -148,6 +148,7 @@ def pose_guide(
     fill: bool = False,
     head_fraction: float = 0.0,
     scale: float | None = None,
+    face: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Black-on-white line art of the subject only (no photo pixels leave this function).
 
@@ -155,6 +156,8 @@ def pose_guide(
     head_fraction: drop interior lines from the top of the figure down to this share below the top of the
     head (e.g. 0.18, see head_band_end) so facial features of a real actor never reach the image model.
     scale: pass shared_scale(...) of the whole action so height changes (crouch, jump) survive.
+    face: the face's mask (same frame as `mask`), painted as a flat darker patch so the head direction shows
+    without any facial feature.
     Returns (guide_rgb, guide_mask) on a size x size canvas, feet on the bottom row.
     """
     fitted_mask, fitted_image, _ = fit_to_canvas(mask, size, margin=margin, image=image, scale=scale)
@@ -170,6 +173,11 @@ def pose_guide(
     guide = np.full((size, size, 3), 255, dtype=np.uint8)
     if fill:
         guide[fitted_mask] = config.GUIDE_FILL_GRAY
+    if face is not None and face.any():
+        face_rgb = np.repeat(face[..., None].astype(np.uint8) * 255, 3, axis=2)
+        _, placed, _ = fit_to_canvas(mask, size, margin=margin, image=face_rgb, scale=scale, background=0)
+        assert placed is not None
+        guide[(placed[..., 0] > 127) & fitted_mask] = config.GUIDE_FACE_GRAY
     guide[edges] = 0
     contours, _ = cv2.findContours(fitted_mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     cv2.drawContours(guide, contours, -1, (0, 0, 0), thickness=3)

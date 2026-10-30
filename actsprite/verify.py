@@ -190,18 +190,24 @@ _CRITIC_RULES = (
     "Check head and body proportions, outfit details, colors, accessories and line style. Ignore the pose here.\n"
     "pose_score (1-10): does the CANDIDATE's pose match the POSE GUIDE? Compare only the angle of each leg and "
     "knee, whether each foot is on the ground or in the air, {pose_parts}. Ignore costume, "
-    "body proportions and art style here. 10 = same pose, 1 = completely different pose.\n"
+    "body proportions and art style here. 10 = same pose, 1 = completely different pose.{head_check}\n"
     "issues: short list of problems. fix_instruction: one sentence telling the artist what to change "
     "(empty string if nothing).\n"
     "Return JSON only."
 )
 
 
+HEAD_CHECK = (" Also compare the head direction: the head must be {head} (the darker patch on the POSE GUIDE's "
+              "head is the face); a head turned another way lowers pose_score.")
+
+
 def critic_parts(
-    sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes, body: str = "biped", anchor: bool = False
+    sheet: bytes, prev: bytes | None, guide: bytes, candidate: bytes, body: str = "biped", anchor: bool = False,
+    head: str = "",
 ) -> list[str | bytes]:
     """Prompt parts for the one-call art-director check (identity + pose). With anchor, `prev` is the
-    approved first frame of the animation rather than the frame just before."""
+    approved first frame of the animation rather than the frame just before. head: the actor's head direction
+    (HeadPose.describe), empty when not tracked."""
     parts: list[str | bytes] = [
         "You are a strict 2D game animation art director.",
         "REFERENCE SHEET:",
@@ -220,6 +226,7 @@ def critic_parts(
         guide,
         "CANDIDATE FRAME:",
         candidate,
-        _CRITIC_RULES.format(prev_clause=clause, pose_parts=BODIES[body].critic_pose_parts),
+        _CRITIC_RULES.format(prev_clause=clause, pose_parts=BODIES[body].critic_pose_parts,
+                             head_check=HEAD_CHECK.format(head=head) if head else ""),
     ]
     return parts

@@ -47,6 +47,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     t.add_argument("--fps", type=_fps,
                    help=f"playback speed, {config.FPS_MIN:g}-{config.FPS_MAX:g}, or auto (as fast as in the clip). "
                         f"Default: idle {config.FPS_IDLE}, others {config.FPS_ACTION}, span auto")
+    t.add_argument("--sample-fps", type=_sample_fps, default=config.SAM_VIDEO_FPS,
+                   help=f"frames per second of the clip that SAM 3.1 tracks, {config.SAMPLE_FPS_MIN:g}-"
+                        f"{config.SAMPLE_FPS_MAX:g} (default {config.SAM_VIDEO_FPS}, never more than the clip has). "
+                        f"Raise it for fast, complex moves filmed at 60 fps; costs $0.0002 per frame")
     t.add_argument("--start", type=float, help="use the clip from this second")
     t.add_argument("--end", type=float, help="use the clip up to this second")
     c = ap.add_argument_group("character (a built-in one, or your own)")
@@ -62,6 +66,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     r.add_argument("--view", choices=VIEWS, default="side",
                    help="side: the character faces right; front: it faces the viewer (clips filmed facing the "
                         "camera; one extra Muse Image call draws the front view of the sheet)")
+    r.add_argument("--head-turn", action=argparse.BooleanOptionalAction, default=None,
+                   help="track the actor's face with SAM 3.1 so the drawn head turns the same way "
+                        "(about $0.04 more; default: on with --view front)")
     r.add_argument("--anchor", choices=ANCHORS, default="first",
                    help="first: frames 1-7 refer to frame 0 and are drawn at once; previous: one at a time")
     r.add_argument("--show-anchor-legs", action="store_true",
@@ -81,6 +88,16 @@ def _fps(text: str) -> float | str:
     return fps
 
 
+def _sample_fps(text: str) -> float:
+    try:
+        fps = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {text}") from None
+    if not config.SAMPLE_FPS_MIN <= fps <= config.SAMPLE_FPS_MAX:
+        raise argparse.ArgumentTypeError(f"must be {config.SAMPLE_FPS_MIN:g}-{config.SAMPLE_FPS_MAX:g}")
+    return fps
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
@@ -94,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
         edges = tuple(e for e in args.edges.split(",") if e)
         result, zip_path = run(args.video, root, args.action, ch, actor=args.actor, mode=args.mode, edges=edges,
                                anchor=args.anchor, hide_anchor_legs=not args.show_anchor_legs,
-                               frames=args.frames, fps=args.fps, start=args.start, end=args.end)
+                               frames=args.frames, fps=args.fps, start=args.start, end=args.end,
+                               head_turn=args.head_turn, sample_fps=args.sample_fps)
     except (PipelineError, MissingApiKey, BudgetExceeded, CacheMiss) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

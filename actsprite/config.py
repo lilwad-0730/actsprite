@@ -50,6 +50,17 @@ GUIDE_HEAD_FRACTION = 0.18  # top share of the figure with interior lines remove
 # height are opened away before finding the top. 10/30 dance clip: with arms overhead the old band held only the
 # hands and the face lines reached Muse Image; 0.06 and 0.08 both found the head on every saved keyframe.
 GUIDE_LIMB_OPEN = 0.08
+# Head direction (actsprite/head.py): SAM 3.1 tracks "face"; the face's place inside the head gives the turn.
+# Checked by eye on the 10/30 dance clip: turns of about 45-60 degrees measured 0.20-0.31, facing the camera
+# 0.00-0.14 (spikes/REPORT.md). Tilt is not estimated: the face mask's axis follows the jaw and neck once the
+# head turns (it read 40-49 degrees on frames with little tilt).
+SAM_FACE_PROMPT = "face"
+HEAD_HEIGHT_SHARE = 0.14  # head = this share of the body height below the top of the head
+HEAD_FACE_MIN_SHARE = 0.08  # face area / head area below this = no face seen (turned away)
+HEAD_YAW_FRONT = 0.12  # face centre offset (share of the head half-width) below this = facing the viewer
+HEAD_YAW_HALF = 0.20  # from here: three-quarter view; between FRONT and HALF: turned slightly
+HEAD_YAW_PROFILE = 0.40  # from here: profile
+GUIDE_FACE_GRAY = 140  # the face patch on the pose guide (darker than GUIDE_FILL_GRAY)
 PALETTE_SIZE = 24
 SPRITE_PIXEL_SIZE = 64  # pixel styles: the art is drawn at this resolution (the showcase look)
 # Output contract (docs/02_product_spec.md 4.1-4.3): cell 128 for pixel art (each art pixel = 2x2), else CELL_SIZE;
@@ -104,6 +115,9 @@ CUTOUT_LINE_GAP = 0.006  # line-art styles: outline breaks up to this share of i
 # --- Capture (video sent to SAM) ------------------------------------------------
 SAM_VIDEO_MAX_SHORT_SIDE = 480  # px; the SAM mask decoder is pure Python (cost ~ pixels), 480 still gives a ~700 px tall figure
 SAM_VIDEO_FPS = 30  # phone clips are often 60 fps; every 2nd frame is enough and halves the cost
+SAM_PARSE_WORKERS_MAX = 8  # decode processes for a SAM video (each loads OpenCV; 32 ran out of page file)
+SAMPLE_FPS_MIN = 1.0  # --sample-fps range: frames per second of the clip sent to SAM 3.1 for tracking
+SAMPLE_FPS_MAX = 60.0  # (never more than the clip has)
 FULL_BODY_EDGE_PX = 2  # a mask this close to the frame edge counts as cut off
 FULL_BODY_MIN_FRAMES = 6  # shortest usable stretch with the whole body in frame
 FULL_BODY_EDGES = ("top", "bottom", "left", "right")  # edges the subject must not touch

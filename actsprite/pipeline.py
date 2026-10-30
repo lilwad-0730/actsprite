@@ -37,6 +37,7 @@ from actsprite import config
 from actsprite.capture import main_track, parse_sam_output, prepare_video, read_frames_at
 from actsprite.characters import Character, cutout, make_sheet
 from actsprite.errors import PipelineError
+from actsprite.head import head_pose
 from actsprite.images import save_rgb, save_rgba, tile
 from actsprite.meta_client import MetaClient, estimate_sam_video_cost, print_estimate
 from actsprite.pack import action_fps, character_meta, export_cells, preview_gif, sheet_from_rows, sprite_cells
@@ -47,22 +48,24 @@ from actsprite.sequence import LOOP_MODES, choose_frames, clip_fps, make_guides,
 
 def track_actor(client: MetaClient, video: Path, prompt: str, work: Path, *,
                 target_fps: float = config.SAM_VIDEO_FPS,
-                short_side: int = config.SAM_VIDEO_MAX_SHORT_SIDE) -> tuple[np.ndarray, float, Path]:
+                short_side: int = config.SAM_VIDEO_MAX_SHORT_SIDE,
+                name: str = "track") -> tuple[np.ndarray, float, Path]:
     """(masks per frame of the SAM clip, its fps, the SAM clip). One SAM 3.1 video call; the decoded track is
-    kept in work/track.npz and reused while the clip and prompt stay the same."""
+    kept in work/<name>.npz and reused while the clip and prompt stay the same."""
     if not video.exists():
         raise PipelineError(f"Video not found: {video}")
     pv = prepare_video(video, work / "sam_input.mp4", target_fps=target_fps, max_short_side=short_side)
     data = pv.path.read_bytes()
     key = hashlib.sha256(data + prompt.encode()).hexdigest()
-    saved = work / "track.npz"
+    saved = work / f"{name}.npz"
     if saved.exists():
         z = np.load(saved)
         if str(z["key"]) == key:
             return z["masks"], float(z["fps"]), pv.path
-    print_estimate(f"SAM 3.1 video track of {video.name} ({pv.frame_count} frames)",
+    print_estimate(f"SAM 3.1 video track of '{prompt}' in {video.name} ({pv.frame_count} frames)",
                    estimate_sam_video_cost(pv.frame_count))
-    text, _ = client.segment(data, prompt, video_frame_count=pv.frame_count, note=f"actsprite track {video.name}")
+    suffix = "" if name == "track" else f" {name}"
+    text, _ = client.segment(data, prompt, video_frame_count=pv.frame_count, note=f"actsprite track {video.name}{suffix}")
     track = main_track(parse_sam_output(text, pv.size, video=True))
     if not track:
         raise PipelineError(f"SAM 3.1 found no '{prompt}' in {video.name}. Check --actor (person, dog, cat ...).")
@@ -71,6 +74,16 @@ def track_actor(client: MetaClient, video: Path, prompt: str, work: Path, *,
         masks[i] = obj.mask
     np.savez_compressed(saved, masks=masks, fps=pv.fps, key=key, source_indices=np.array(pv.source_indices))
     return masks, pv.fps, pv.path
+
+
+def track_faces(client: MetaClient, video: Path, work: Path, sample_fps: float) -> np.ndarray | None:
+    """The actor's face per frame (SAM 3.1 prompt config.SAM_FACE_PROMPT), or None when no face is ever found."""
+    try:
+        faces, _, _ = track_actor(client, video, config.SAM_FACE_PROMPT, work, target_fps=sample_fps, name="face")
+    except PipelineError:
+        print("[warn] SAM 3.1 found no face in the clip: the head direction is left to the pose guide", flush=True)
+        return None
+    return faces
 
 
 def playback_fps(fps: float | str | None, info: dict, sam_fps: float, mode: str) -> float:
@@ -87,9 +100,16 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
                mode: str | None = None, edges: tuple[str, ...] = config.FULL_BODY_EDGES, anchor: str = "first",
                hide_anchor_legs: bool = True, frames: int = config.FRAMES_PER_ACTION,
                fps: float | str | None = None, start: float | None = None, end: float | None = None,
+               head_turn: bool | None = None, sample_fps: float = config.SAM_VIDEO_FPS,
                client: MetaClient | None = None) -> dict:
     """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result.
-    frames: keyframes to draw; fps: playback speed (see playback_fps); start/end: part of the clip in seconds."""
+    frames: keyframes to draw; fps: playback speed (see playback_fps); start/end: part of the clip in seconds.
+    head_turn: also track the face with SAM 3.1 so the drawn head turns like the actor's (None: on in front view).
+    sample_fps: frames per second of the clip sent to SAM 3.1 for tracking."""
+    if not config.SAMPLE_FPS_MIN <= sample_fps <= config.SAMPLE_FPS_MAX:
+        raise PipelineError(f"--sample-fps must be {config.SAMPLE_FPS_MIN:g}-{config.SAMPLE_FPS_MAX:g}, "
+                            f"not {sample_fps:g}.")
+    head_turn = ch.view == "front" if head_turn is None else head_turn
     mode = mode_for(action, mode)
     client = client or MetaClient()
     work = root / "work" / action
@@ -98,12 +118,15 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     t0 = time.perf_counter()
     note = f"actsprite {ch.name} {action}"
 
-    masks, sam_fps, sam_clip = track_actor(client, video, actor, work)
+    masks, sam_fps, sam_clip = track_actor(client, video, actor, work, target_fps=sample_fps)
     t_track = time.perf_counter() - t0
     info, rel = choose_frames(masks, sam_fps, mode, edges, frames, start, end)
     play_fps = playback_fps(fps, info, sam_fps, mode)
     keys = info["keyframes"]
-    guides = make_guides(read_frames_at(sam_clip, keys), masks, keys, rel)
+    faces = track_faces(client, video, work, sample_fps) if head_turn else None
+    poses = [head_pose(masks[k], None if faces is None else faces[k]) for k in keys] if faces is not None else None
+    heads = [p.describe() if p else "" for p in poses] if poses else None
+    guides = make_guides(read_frames_at(sam_clip, keys), masks, keys, rel, faces)
     for k, (g, _) in enumerate(guides):
         save_rgb(work / "guides" / f"{k}.png", g)
 
@@ -113,7 +136,7 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
         save_rgb(root / "work" / "sheet.png", make_sheet(client, replace(ch, view="side"))[1])  # cached
     hide_legs, legs_stay = leg_policy(mode, hide_anchor_legs)
     rows, rgbs, timing = redraw_action(client, ch, guides, sheet_png, palette, work / "redraw", note,
-                                       anchor, hide_legs, legs_stay)
+                                       anchor, hide_legs, legs_stay, heads)
 
     pixel_art = STYLES[ch.style].pixelate
     cells = sprite_cells(rgbs, [cutout(rgb, ch) for rgb in rgbs], palette,
@@ -131,7 +154,8 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     chosen = sorted((r for r in rows if r.get("chosen")), key=lambda r: r["frame"])
     result = {
         "name": action, "mode": mode, "frames": len(chosen), "fps": play_fps, "loop": mode in LOOP_MODES,
-        "view": ch.view,
+        "view": ch.view, "head_turn": faces is not None, "heads": heads,
+        "head_yaw": [None if p is None else round(p.yaw, 3) for p in poses] if poses else None,
         "passed": [bool(r["passed"]) for r in chosen],
         "attempts": len(rows), "first_try_pass": sum(bool(r["passed"]) for r in rows if r["attempt"] == 0),
         "video": str(video), "actor": actor, "edges": list(edges), "sam_fps": round(sam_fps, 2),

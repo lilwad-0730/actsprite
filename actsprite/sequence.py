@@ -89,9 +89,9 @@ def clip_fps(info: dict, fps: float, mode: str) -> float:
 
 
 def make_guides(frames: dict[int, np.ndarray], masks: np.ndarray, keys: list[int],
-                rel: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
+                rel: np.ndarray, faces: np.ndarray | None = None) -> list[tuple[np.ndarray, np.ndarray]]:
     """(pose guide image, its mask) per keyframe, all at one scale so a crouch stays shorter.
-    `frames` only needs the keyframes (RGB, indexed like `masks`)."""
+    `frames` only needs the keyframes (RGB, indexed like `masks`); `faces` (same indexing) adds the face patch."""
     scale = shared_scale([masks[i] for i in keys], config.GUIDE_SIZE, config.CELL_MARGIN * 2, rel[keys])
     return [pose_guide(frames[i], masks[i], fill=True, head_fraction=config.GUIDE_HEAD_FRACTION,
-                       scale=scale * rel[i]) for i in keys]
+                       scale=scale * rel[i], face=None if faces is None else faces[i]) for i in keys]

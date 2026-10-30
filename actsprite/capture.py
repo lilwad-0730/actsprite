@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,14 +67,20 @@ def parse_sam_output(
     frame_size is (width, height) of the media that was sent. Each SAM mask is a
     crop covering its box, so it is pasted back at the box's top-left corner.
     The official decoder is pure Python (~1 s per 720p person mask), so video output
-    is split by frame and decoded in `workers` processes (default: all CPUs; 1 = in-process).
+    is split by frame and decoded in `workers` processes (default: CPUs up to config.SAM_PARSE_WORKERS_MAX;
+    1 = in-process). If a worker dies (10/30: Windows ran out of page file with 32 workers), the rest is decoded
+    in this process.
     """
     width, height = frame_size
-    workers = workers or os.cpu_count() or 1
+    workers = workers or min(os.cpu_count() or 1, config.SAM_PARSE_WORKERS_MAX)
     chunks = _frame_chunks(text, workers * 4) if video and workers > 1 else [text]
     if len(chunks) > 1:
-        with ProcessPoolExecutor(max_workers=min(workers, len(chunks))) as pool:
-            decoded = [d for part in pool.map(_decode_chunk, chunks, [video] * len(chunks)) for d in part]
+        try:
+            with ProcessPoolExecutor(max_workers=min(workers, len(chunks))) as pool:
+                decoded = [d for part in pool.map(_decode_chunk, chunks, [video] * len(chunks)) for d in part]
+        except BrokenProcessPool:
+            print("[warn] SAM decode worker died; decoding in the main process (slower)", flush=True)
+            decoded = [d for chunk in chunks for d in _decode_chunk(chunk, video)]
     else:
         decoded = _decode_chunk(text, video)
 

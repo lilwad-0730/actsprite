@@ -62,6 +62,7 @@ REDRAW_PROMPT = (
     "Redraw the character from image 1 in the EXACT pose of the pose guide (the last image). "
     "The pose guide is the only source of the pose: match the angle of every limb, where each foot and knee is, "
     "{pose_parts}.\n"
+    "{head_line}"
     "Keep the character's design, outfit and colors identical to image 1.\n"
     "{prev_line}"
     "{view_line}"
@@ -77,6 +78,8 @@ VIEW_LINES = {
              "arm on the left of the drawing.\n",
 }
 VIEWS = tuple(VIEW_LINES)
+# Head direction from actsprite/head.py (empty when not tracked: the prompt is then unchanged).
+HEAD_LINE = "Head: {head}. The darker patch on the pose guide's head marks where the face is.\n"
 # Front view sheet: drawn from the side-view sheet so the design stays the same character.
 FRONT_SHEET_PROMPT = (
     "Draw the same character as image 1 seen from the front, facing the viewer, face visible: same design, outfit, "
@@ -125,10 +128,11 @@ def front_sheet_parts(side_sheet: bytes, style: str) -> list[str | bytes]:
 
 def redraw_parts(
     sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = "", body: str = "biped",
-    anchor: bool = False, legs_hidden: bool = False, view: str = "side",
+    anchor: bool = False, legs_hidden: bool = False, view: str = "side", head: str = "",
 ) -> list[str | bytes]:
     """Interleaved prompt for one frame: sheet, (previous or, with anchor, first approved frame), pose guide,
-    instructions. legs_hidden: the anchor was sent through hide_legs. view: key of VIEW_LINES."""
+    instructions. legs_hidden: the anchor was sent through hide_legs. view: key of VIEW_LINES.
+    head: the actor's head direction (HeadPose.describe), empty when not tracked."""
     if legs_hidden and not anchor:
         raise ValueError("legs_hidden only applies to the anchor (first) frame: pass anchor=True.")
     if view not in VIEW_LINES:
@@ -148,7 +152,8 @@ def redraw_parts(
         "Last image - pose guide:",
         guide,
         REDRAW_PROMPT.format(prev_line=ref_line, style=STYLES[style].prompt, fix=fix_line,
-                             pose_parts=BODIES[body].pose_parts, view_line=VIEW_LINES[view]),
+                             pose_parts=BODIES[body].pose_parts, view_line=VIEW_LINES[view],
+                             head_line=HEAD_LINE.format(head=head) if head else ""),
     ]
     return parts
 

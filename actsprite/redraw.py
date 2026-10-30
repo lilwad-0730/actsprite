@@ -101,7 +101,7 @@ def leg_policy(mode: str, hide_anchor_legs: bool = True) -> tuple[bool, bool]:
 
 def redraw_frame(client: MetaClient, ch: Character, out: Path, note: str, k: int,
                  guide: tuple[np.ndarray, np.ndarray], sheet_png: bytes, palette: np.ndarray,
-                 ref: Reference | None) -> tuple[list[dict], bytes, np.ndarray]:
+                 ref: Reference | None, head: str = "") -> tuple[list[dict], bytes, np.ndarray]:
     """Draw one frame, check it, redraw up to MAX_REGENERATIONS times; returns the rows and the best attempt.
     Attempts are saved as out/<k>_a<n>.png and the chosen one as out/<k>.png."""
     guide_rgb, guide_mask = guide
@@ -117,7 +117,7 @@ def redraw_frame(client: MetaClient, ch: Character, out: Path, note: str, k: int
         sent = (ref.gen_png or ref.png) if ref is not None and use_ref else None
         legs_hidden = sent is not None and ref is not None and ref.legs_hidden
         png, _ = client.generate_image(
-            redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden, ch.view),
+            redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden, ch.view, head),
             note=f"{note} f{k} a{attempt}")
         rgb = decode_rgb(png)
         save_rgb(out / f"{k}_a{attempt}.png", rgb)
@@ -132,7 +132,7 @@ def redraw_frame(client: MetaClient, ch: Character, out: Path, note: str, k: int
         elif ref is not None:
             motion = leg_motion(ref.guide_mask, guide_mask, ref.cut, cut)
         verdict, _ = client.critic(
-            critic_parts(sheet_png, None if ref is None else ref.png, guide_png, png, ch.body, anchor),
+            critic_parts(sheet_png, None if ref is None else ref.png, guide_png, png, ch.body, anchor, head),
             CRITIC_SCHEMA, note=f"{note} critic f{k} a{attempt}")
         scores = FrameScores(iou, float(verdict["pose_score"]), float(verdict["identity_score"]),
                              palette_drift(rgb, cut, palette), motion, copied_from, drift_legs)
@@ -162,18 +162,20 @@ def redraw_frame(client: MetaClient, ch: Character, out: Path, note: str, k: int
 
 def redraw_action(client: MetaClient, ch: Character, guides: list[tuple[np.ndarray, np.ndarray]],
                   sheet_png: bytes, palette: np.ndarray, out: Path, note: str, anchor: str = "first",
-                  hide_anchor_legs: bool = True, legs_stay: bool = False,
+                  hide_anchor_legs: bool = True, legs_stay: bool = False, heads: list[str] | None = None,
                   ) -> tuple[list[dict], list[np.ndarray], dict]:
     """Redraw every keyframe. Returns (one row per attempt, the chosen frames' RGB in order, timing and the
     leg motion between neighbouring chosen frames). hide_anchor_legs only applies to anchor="first";
-    legs_stay=True checks that the legs keep frame 0's stance instead of checking for copies (see leg_policy)."""
+    legs_stay=True checks that the legs keep frame 0's stance instead of checking for copies (see leg_policy).
+    heads: the actor's head direction per frame (actsprite/head.py), or None when not tracked."""
     if anchor not in ANCHORS:
         raise ValueError(f"anchor must be one of {ANCHORS}")
     print_estimate(f"redraw {len(guides)} frames, up to {config.MAX_REGENERATIONS + 1} tries each",
                    len(guides) * TRY_EST_USD * (config.MAX_REGENERATIONS + 1))
 
     def draw(k: int, ref: Reference | None) -> tuple[list[dict], bytes, np.ndarray]:
-        return redraw_frame(client, ch, out, note, k, guides[k], sheet_png, palette, ref)
+        return redraw_frame(client, ch, out, note, k, guides[k], sheet_png, palette, ref,
+                            heads[k] if heads else "")
 
     rows: list[dict] = []
     chosen: list[np.ndarray] = []

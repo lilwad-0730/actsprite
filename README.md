@@ -88,6 +88,11 @@ Options for moves filmed facing the camera, such as a dance:
 - `--frames N` draws N frames (2-48, default 8). Each frame costs about $0.03-0.10 with its redraws.
 - `--fps` sets the playback speed (1-30), or `auto` to play as fast as the clip. Defaults: idle 8, other
   actions 12, span `auto`.
+- `--head-turn` also tracks the actor's face with SAM 3.1 (about $0.04), so the drawn head turns the same way:
+  facing the viewer, turned slightly, three-quarter, profile, or away. The pose guide gets a flat face patch
+  (shape only, no features) and the redraw and the critic get one sentence. On by default with `--view front`.
+- `--sample-fps` sets how many frames per second SAM 3.1 tracks (1-60, default 30, never more than the clip
+  has). Raise it for fast, complex moves filmed at 60 fps.
 
 The estimated cost is printed before each batch of calls and every call is logged in `logs/cost.csv`
 (about $0.7 per action for the three examples; identical requests are served from `cache/` for free). Set `ACTSPRITE_OFFLINE=1`

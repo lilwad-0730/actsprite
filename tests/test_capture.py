@@ -140,3 +140,28 @@ def test_read_frames_at_returns_only_the_asked_frames(tmp_path):
     assert all((some[i] == every[i]).all() for i in some)
     with pytest.raises(ValueError):
         read_frames_at(src, [3, 40])
+
+
+def test_video_parse_survives_a_dead_worker(monkeypatch):
+    from concurrent.futures.process import BrokenProcessPool
+
+    import actsprite.capture as capture
+
+    class DyingPool:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def map(self, *a, **k):
+            raise BrokenProcessPool("worker ran out of page file")
+
+    text = "".join(SAMPLE.replace("<0f>", f"<{i}f>") for i in range(4))
+    serial = parse_sam_output(text, (320, 334), video=True, workers=1)
+    monkeypatch.setattr(capture, "ProcessPoolExecutor", DyingPool)
+    rescued = parse_sam_output(text, (320, 334), video=True, workers=3)
+    assert [(o.frame_index, o.box) for o in rescued] == [(o.frame_index, o.box) for o in serial]
