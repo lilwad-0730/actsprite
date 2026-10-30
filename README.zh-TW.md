@@ -12,18 +12,18 @@
 
 **1. 查看完成的輸出。** 每個 ZIP 都是處理流程實際交付給 Unity 的內容：
 
-| 像素騎士：攻擊 | 像素獵犬：行走 | 線稿人物：攻擊 |
+| 像素騎士：舞蹈（正面、48 幀） | 像素獵犬：行走 | 線稿人物：攻擊 |
 | --- | --- | --- |
-| ![騎士](examples/previews/knight_attack.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物](examples/previews/lineman_attack.gif) |
+| ![騎士](examples/previews/knight_dance.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物](examples/previews/lineman_attack.gif) |
 | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 8 幀中有 7 幀通過全部檢查 | 8 幀中有 5 幀 | 8 幀中有 5 幀 |
-| Meta API 呼叫費用 US$0.70 | US$0.73 | US$0.67 |
+| 48 幀中有 40 幀通過全部檢查 | 8 幀中有 5 幀 | 8 幀中有 5 幀 |
+| Meta API 呼叫費用 US$3.07 | US$0.73 | US$0.67 |
 
 每個 ZIP 內含 Sprite Sheet、供 Unity 匯入工具使用的 `<name>_meta.json`、每一幀的 PNG、GIF
 預覽，以及記錄每次重繪分數的 `report/scores.csv`（`needs_review` 代表該幀未通過所有檢查）。
 費用是 `logs/cost.csv` 中每個 ZIP 背後所有付費呼叫的總和，包含 SAM 3.1 影片追蹤、角色設定圖，
-以及每次重繪與檢查。每個動作約需 3–4.5 分鐘（量測結果見 `spikes/REPORT.md` 的 Day 4）。
-這些 ZIP 是從 API 快取重新建立，因此其 `report/summary.md` 會顯示 US$0，並註明原因。
+以及每次重繪與檢查。8 幀的動作約需 3–4.5 分鐘（量測結果見 `spikes/REPORT.md` 的 Day 4），48 幀的舞蹈約 15 分鐘。
+獵犬和線稿人物的 ZIP 是從 API 快取重新建立，因此其 `report/summary.md` 會顯示 US$0，並註明原因。
 
 **2. 執行測試。** 不需要金鑰或網路；`tests/test_examples.py` 會依輸出合約檢查三個 ZIP。
 
@@ -56,7 +56,7 @@ copy .env.example .env   # 接著將 Meta Model API Key 填入 .env
 .venv\Scripts\python -m actsprite samples/attack.MOV --action attack --edges left,right             # 像素騎士
 .venv\Scripts\python -m actsprite samples/pet.mp4 --action walk --actor dog --character hound         # 像素獵犬
 .venv\Scripts\python -m actsprite my_jump.mp4 --action jump --sheet my_hero.png --style lineart --name hero
-.venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 16 --end 2.7
+.venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 48 --edges top,bottom,left
 ```
 
 每次執行都會使用 SAM 3.1 追蹤主角、挑選 8 個關鍵幀（跳躍／攻擊取一個爆發動作，待機取一個循環，
@@ -126,6 +126,7 @@ US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPR
 | 影片 | 來源 | 授權 | 用途 |
 | --- | --- | --- | --- |
 | `samples/pet.mp4`（未收入儲存庫） | Luis Adolfo Burgos 於 Pexels 發布的 [Close-Up Shot of Dog Walking on the Street](https://www.pexels.com/video/close-up-shot-of-dog-walking-on-the-street-4300700/) | [Pexels License](https://www.pexels.com/license/)（可免費使用與修改） | 四足行走循環的測試輸入。儲存庫只收錄衍生剪影與重繪 Sprite；如需重現，請從連結下載影片。 |
+| `samples/dance 2 test .mp4`（未收入儲存庫） | 作者的朋友拍攝 | 已取得舞者同意 | 像素騎士舞蹈範例的輸入。儲存庫只收錄重繪後的騎士 Sprite。 |
 
 ## 授權
 

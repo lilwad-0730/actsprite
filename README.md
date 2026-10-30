@@ -12,19 +12,19 @@ Act out a move on your phone. Get a consistent, game-ready animated character in
 
 **1. Look at finished output.** Each ZIP is exactly what the pipeline hands to Unity:
 
-| Pixel knight, attack | Pixel hound, walk | Line-art man, attack |
+| Pixel knight, dance (front view, 48 frames) | Pixel hound, walk | Line-art man, attack |
 | --- | --- | --- |
-| ![knight](examples/previews/knight_attack.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man](examples/previews/lineman_attack.gif) |
+| ![knight](examples/previews/knight_dance.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man](examples/previews/lineman_attack.gif) |
 | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 7/8 frames passed every check | 5/8 | 5/8 |
-| $0.70 in Meta API calls | $0.73 | $0.67 |
+| 40/48 frames passed every check | 5/8 | 5/8 |
+| $3.07 in Meta API calls | $0.73 | $0.67 |
 
 Inside each ZIP: the sprite sheet, `<name>_meta.json` for the Unity importer, every frame as a PNG, a GIF
 preview, and `report/scores.csv` with the scores of every redraw attempt (`needs_review` marks the frames that did
 not pass every check). The spend is the sum of every paid call behind each ZIP in `logs/cost.csv`: the SAM 3.1
-video track, the character sheet and every redraw and check. One action takes about 3-4.5 minutes
-(measurements in `spikes/REPORT.md`, Day 4). The ZIPs were rebuilt from the API cache, so their own
-`report/summary.md` shows $0 and says so.
+video track, the character sheet and every redraw and check. An 8-frame action takes about 3-4.5 minutes
+(measurements in `spikes/REPORT.md`, Day 4); the 48-frame dance took 15 minutes. The hound and line-art ZIPs
+were rebuilt from the API cache, so their own `report/summary.md` shows $0 and says so.
 
 **2. Run the tests.** No key and no network needed; `tests/test_examples.py` checks the three ZIPs against the
 output contract.
@@ -58,7 +58,7 @@ copy .env.example .env   # then paste your Meta Model API key into .env
 .venv\Scripts\python -m actsprite samples/attack.MOV --action attack --edges left,right             # pixel knight
 .venv\Scripts\python -m actsprite samples/pet.mp4 --action walk --actor dog --character hound         # pixel hound
 .venv\Scripts\python -m actsprite my_jump.mp4 --action jump --sheet my_hero.png --style lineart --name hero
-.venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 16 --end 2.7
+.venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 48 --edges top,bottom,left
 ```
 
 Each run tracks the actor with SAM 3.1, picks 8 keyframes (one burst for jump/attack, one loop for idle,
@@ -133,6 +133,7 @@ The only outside input is the test footage listed under Credits.
 | Footage | Source | License | Use |
 | --- | --- | --- | --- |
 | `samples/pet.mp4` (not in the repo) | [Close-Up Shot of Dog Walking on the Street](https://www.pexels.com/video/close-up-shot-of-dog-walking-on-the-street-4300700/) by Luis Adolfo Burgos, Pexels | [Pexels License](https://www.pexels.com/license/) (free to use and modify) | Test input for the four-legged walk cycle. Only derived silhouettes and redrawn sprites appear in this repo; download the clip from the link to reproduce. |
+| `samples/dance 2 test .mp4` (not in the repo) | Filmed by a friend of the author | Used with the dancer's consent | Input for the knight dance example. Only the redrawn knight sprites appear in this repo. |
 
 ## License
 

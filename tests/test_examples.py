@@ -40,7 +40,7 @@ def test_example_follows_the_contract(path):
     with z.open(f"{top}report/scores.csv") as f:
         scores = list(csv.DictReader(io.TextIOWrapper(f, encoding="utf-8")))
     for a in actions:
-        assert set(a) == {"name", "row", "frames", "fps", "loop"} and a["fps"] in (config.FPS_IDLE, config.FPS_ACTION)
+        assert set(a) == {"name", "row", "frames", "fps", "loop"} and config.FPS_MIN <= a["fps"] <= config.FPS_MAX
         frames = sorted(n for n in names if n.startswith(f"{top}frames/{a['name']}/"))
         assert len(frames) == a["frames"]
         assert all(Image.open(io.BytesIO(z.read(n))).size == (w, h) for n in frames)
