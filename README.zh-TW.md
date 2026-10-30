@@ -90,7 +90,8 @@ US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPR
 
 ## 網頁應用程式
 
-線上預覽：https://huggingface.co/spaces/Andy0730huggin/actsprite（作品展示＋SAM 3.1 追蹤確認）。
+線上預覽：https://huggingface.co/spaces/Andy0730huggin/actsprite
+（作品展示＋SAM 3.1 追蹤確認）。
 
 ```powershell
 .venv\Scripts\python -m pip install gradio==6.31.0 spaces huggingface_hub
