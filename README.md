@@ -58,6 +58,7 @@ copy .env.example .env   # then paste your Meta Model API key into .env
 .venv\Scripts\python -m actsprite samples/attack.MOV --action attack --edges left,right             # pixel knight
 .venv\Scripts\python -m actsprite samples/pet.mp4 --action walk --actor dog --character hound         # pixel hound
 .venv\Scripts\python -m actsprite my_jump.mp4 --action jump --sheet my_hero.png --style lineart --name hero
+.venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 16 --end 2.7
 ```
 
 Each run tracks the actor with SAM 3.1, picks 8 keyframes (one burst for jump/attack, one loop for idle,
@@ -75,7 +76,18 @@ actsprite_<name>/
   report/scores.csv                every redraw attempt with its scores; needs_review marks frames to check
   report/summary.md
   reference/character_sheet.png
+  reference/character_sheet_front.png   only when an action was drawn with --view front
 ```
+
+Options for moves filmed facing the camera, such as a dance:
+
+- `--view front` draws the character facing the viewer. One extra Muse Image call turns the side-view sheet
+  into a front-view sheet of the same design.
+- `--mode span` spreads the frames evenly over the whole clip, or over `--start`/`--end` (seconds), instead of
+  picking one burst or one loop.
+- `--frames N` draws N frames (2-48, default 8). Each frame costs about $0.03-0.10 with its redraws.
+- `--fps` sets the playback speed (1-30), or `auto` to play as fast as the clip. Defaults: idle 8, other
+  actions 12, span `auto`.
 
 The estimated cost is printed before each batch of calls and every call is logged in `logs/cost.csv`
 (about $0.7 per action for the three examples; identical requests are served from `cache/` for free). Set `ACTSPRITE_OFFLINE=1`

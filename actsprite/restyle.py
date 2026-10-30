@@ -64,9 +64,25 @@ REDRAW_PROMPT = (
     "{pose_parts}.\n"
     "Keep the character's design, outfit and colors identical to image 1.\n"
     "{prev_line}"
-    "Full body, side view, facing right, feet touching the bottom edge like the pose guide.\n"
+    "{view_line}"
     "Style: {style}. Plain solid white background, no shadow, no props, no text, no border.\n"
     "{fix}"
+)
+# How the character faces in every frame. "side" is the Day 1 wording unchanged (cached calls stay valid);
+# "front" is for clips filmed facing the camera (10/30 dance clip: side-view redraws turned the dance sideways).
+VIEW_LINES = {
+    "side": "Full body, side view, facing right, feet touching the bottom edge like the pose guide.\n",
+    "front": "Full body, front view, facing the viewer, face visible, feet touching the bottom edge like the "
+             "pose guide. The pose guide shows the actor from the front: the arm on the left of the guide is the "
+             "arm on the left of the drawing.\n",
+}
+VIEWS = tuple(VIEW_LINES)
+# Front view sheet: drawn from the side-view sheet so the design stays the same character.
+FRONT_SHEET_PROMPT = (
+    "Draw the same character as image 1 seen from the front, facing the viewer, face visible: same design, outfit, "
+    "colors, proportions and line style. Full body, standing neutral pose with the arms slightly away from the "
+    "body, centered, feet at the bottom.\n"
+    "Style: {style}. Plain solid white background, no shadow, no text, no border."
 )
 PREV_LINE = (
     "Use image 2 (the previous animation frame) ONLY for line weight, shading and colors; do NOT copy its pose.\n"
@@ -101,14 +117,22 @@ def sheet_prompt(description: str, style: str, body: str = "biped") -> str:
     return SHEET_PROMPT.format(description=description, rules=rules, style=STYLES[style].prompt)
 
 
+def front_sheet_parts(side_sheet: bytes, style: str) -> list[str | bytes]:
+    """Prompt for the front-view sheet, drawn from the side-view sheet."""
+    return ["Image 1 - character reference sheet (side view):", side_sheet,
+            FRONT_SHEET_PROMPT.format(style=STYLES[style].prompt)]
+
+
 def redraw_parts(
     sheet: bytes, guide: bytes, prev: bytes | None, style: str, fix: str = "", body: str = "biped",
-    anchor: bool = False, legs_hidden: bool = False,
+    anchor: bool = False, legs_hidden: bool = False, view: str = "side",
 ) -> list[str | bytes]:
     """Interleaved prompt for one frame: sheet, (previous or, with anchor, first approved frame), pose guide,
-    instructions. legs_hidden: the anchor was sent through hide_legs."""
+    instructions. legs_hidden: the anchor was sent through hide_legs. view: key of VIEW_LINES."""
     if legs_hidden and not anchor:
         raise ValueError("legs_hidden only applies to the anchor (first) frame: pass anchor=True.")
+    if view not in VIEW_LINES:
+        raise ValueError(f"Unknown view '{view}'; use one of {VIEWS}.")
     label, ref_line = (
         (ANCHOR_NOLEGS_LABEL, ANCHOR_NOLEGS_LINE) if legs_hidden
         else (ANCHOR_LABEL, ANCHOR_LINE) if anchor
@@ -124,7 +148,7 @@ def redraw_parts(
         "Last image - pose guide:",
         guide,
         REDRAW_PROMPT.format(prev_line=ref_line, style=STYLES[style].prompt, fix=fix_line,
-                             pose_parts=BODIES[body].pose_parts),
+                             pose_parts=BODIES[body].pose_parts, view_line=VIEW_LINES[view]),
     ]
     return parts
 

@@ -58,6 +58,12 @@ CELL_PIXEL_ART = 128
 FPS_IDLE = 8
 FPS_ACTION = 12
 ACTION_ORDER = ("idle", "run", "walk", "jump", "attack")  # sheet rows; other actions follow alphabetically
+# User settings (10/30, approved to go beyond the spec's 6-12 frames / 8-24 fps so a whole dance fits):
+# frames per action and playback fps. "auto" fps plays the frames at the clip's own speed.
+FRAMES_MIN = 2
+FRAMES_MAX = 48
+FPS_MIN = 1.0
+FPS_MAX = 30.0
 UNITY_IMPORTER = ROOT / "unity" / "ActSpriteImporter.cs"  # copied into the ZIP once it exists (10/31)
 
 # --- Verification loop (Day 1 values from spikes/REPORT.md; recalibrate 10-30) ---

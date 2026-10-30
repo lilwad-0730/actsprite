@@ -45,3 +45,19 @@ def test_package_follows_the_output_contract(tmp_path):
     assert "Rebuilt from the API cache with no new Meta API calls: idle." in summary  # honest about replays
     scores = (pkg / "report" / "scores.csv").read_text(encoding="utf-8").splitlines()
     assert scores[0].startswith("action,frame") and len(scores) == 3
+
+
+def test_front_view_sheet_goes_into_the_package(tmp_path):
+    root = tmp_path / "knight"
+    _fake_action(root, "dance", "span", 16, [True] * 16)
+    result = json.loads((root / "work" / "dance" / "result.json").read_text(encoding="utf-8"))
+    (root / "work" / "dance" / "result.json").write_text(json.dumps({**result, "view": "front", "fps": 7.5,
+                                                                     "loop": False}), encoding="utf-8")
+    Image.new("RGB", (64, 64), "white").save(root / "work" / "sheet.png")
+    Image.new("RGB", (64, 64), "white").save(root / "work" / "sheet_front.png")
+    zip_path = build_package(root, Character("knight", "an original knight"))
+    names = set(zipfile.ZipFile(zip_path).namelist())
+    assert "actsprite_knight/reference/character_sheet_front.png" in names
+    meta = json.loads((root / "actsprite_knight" / "knight_meta.json").read_text(encoding="utf-8"))
+    assert meta["actions"][0] == {"name": "dance", "row": 0, "frames": 16, "fps": 7.5, "loop": False}
+    assert Image.open(root / "actsprite_knight" / "knight_sheet.png").size == (16 * 128, 128)

@@ -56,6 +56,7 @@ copy .env.example .env   # 接著將 Meta Model API Key 填入 .env
 .venv\Scripts\python -m actsprite samples/attack.MOV --action attack --edges left,right             # 像素騎士
 .venv\Scripts\python -m actsprite samples/pet.mp4 --action walk --actor dog --character hound         # 像素獵犬
 .venv\Scripts\python -m actsprite my_jump.mp4 --action jump --sheet my_hero.png --style lineart --name hero
+.venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 16 --end 2.7
 ```
 
 每次執行都會使用 SAM 3.1 追蹤主角、挑選 8 個關鍵幀（跳躍／攻擊取一個爆發動作，待機取一個循環，
@@ -73,7 +74,15 @@ actsprite_<name>/
   report/scores.csv                每次重繪的分數；needs_review 標記需要檢查的幀
   report/summary.md
   reference/character_sheet.png
+  reference/character_sheet_front.png   只在有動作使用 --view front 時輸出
 ```
+
+面對鏡頭拍攝的動作（例如跳舞）可以用以下選項：
+
+- `--view front`：角色改為正面朝向觀眾。會多一次 Muse Image 呼叫，把側面設定圖畫成同一角色的正面設定圖。
+- `--mode span`：在整段影片（或 `--start`／`--end` 指定的秒數範圍）平均取幀，不只挑一段爆發動作或一個循環。
+- `--frames N`：畫 N 幀（2–48，預設 8）。每幀含重繪約 US$0.03–0.10。
+- `--fps`：播放速度（1–30），或用 `auto` 依影片原速播放。預設：待機 8、其他動作 12、span 為 `auto`。
 
 每批 API 呼叫前都會顯示預估費用，且每次呼叫都記錄於 `logs/cost.csv`（三個範例每個動作約
 US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPRITE_OFFLINE=1` 後只會從快取回應：

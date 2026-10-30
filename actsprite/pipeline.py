@@ -1,4 +1,4 @@
-"""The whole pipeline for one character: phone clip of each action -> SAM 3.1 track -> 8 keyframes and pose
+"""The whole pipeline for one character: phone clip of each action -> SAM 3.1 track -> keyframes and pose
 guides -> character redraw with the verification loop -> the output ZIP of the interface contract
 (docs/02_product_spec.md 4.2):
 
@@ -10,6 +10,7 @@ guides -> character redraw with the verification loop -> the output ZIP of the i
     report/scores.csv                 every redraw attempt with its scores; needs_review marks frames to check
     report/summary.md                 spend, time and the frames to check by hand
     reference/character_sheet.png
+    reference/character_sheet_front.png   once an action was drawn in front view
     unity/ActSpriteImporter.cs        once the importer exists
   actsprite_<name>.zip                the same folder, zipped
   work/<action>/                      SAM input clip, track, pose guides, every attempt, the action's result
@@ -26,6 +27,7 @@ import hashlib
 import json
 import shutil
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -40,7 +42,7 @@ from actsprite.meta_client import MetaClient, estimate_sam_video_cost, print_est
 from actsprite.pack import action_fps, character_meta, export_cells, preview_gif, sheet_from_rows, sprite_cells
 from actsprite.redraw import leg_policy, redraw_action
 from actsprite.restyle import STYLES
-from actsprite.sequence import choose_frames, make_guides, mode_for
+from actsprite.sequence import LOOP_MODES, choose_frames, clip_fps, make_guides, mode_for
 
 
 def track_actor(client: MetaClient, video: Path, prompt: str, work: Path, *,
@@ -71,10 +73,23 @@ def track_actor(client: MetaClient, video: Path, prompt: str, work: Path, *,
     return masks, pv.fps, pv.path
 
 
+def playback_fps(fps: float | str | None, info: dict, sam_fps: float, mode: str) -> float:
+    """None: the contract default for the mode (span: the clip's speed); "auto": the clip's speed; or a number."""
+    if fps is None:
+        fps = "auto" if mode == "span" else action_fps(mode)
+    fps = clip_fps(info, sam_fps, mode) if fps == "auto" else float(fps)
+    if not config.FPS_MIN <= fps <= config.FPS_MAX:
+        raise PipelineError(f"--fps must be {config.FPS_MIN:g}-{config.FPS_MAX:g} or auto, not {fps:g}.")
+    return int(fps) if fps.is_integer() else fps  # 12, not 12.0, in the meta JSON
+
+
 def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: str = "person",
                mode: str | None = None, edges: tuple[str, ...] = config.FULL_BODY_EDGES, anchor: str = "first",
-               hide_anchor_legs: bool = True, client: MetaClient | None = None) -> dict:
-    """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result."""
+               hide_anchor_legs: bool = True, frames: int = config.FRAMES_PER_ACTION,
+               fps: float | str | None = None, start: float | None = None, end: float | None = None,
+               client: MetaClient | None = None) -> dict:
+    """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result.
+    frames: keyframes to draw; fps: playback speed (see playback_fps); start/end: part of the clip in seconds."""
     mode = mode_for(action, mode)
     client = client or MetaClient()
     work = root / "work" / action
@@ -83,16 +98,19 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     t0 = time.perf_counter()
     note = f"actsprite {ch.name} {action}"
 
-    masks, fps, sam_clip = track_actor(client, video, actor, work)
+    masks, sam_fps, sam_clip = track_actor(client, video, actor, work)
     t_track = time.perf_counter() - t0
-    info, rel = choose_frames(masks, fps, mode, edges)
+    info, rel = choose_frames(masks, sam_fps, mode, edges, frames, start, end)
+    play_fps = playback_fps(fps, info, sam_fps, mode)
     keys = info["keyframes"]
     guides = make_guides(read_frames_at(sam_clip, keys), masks, keys, rel)
     for k, (g, _) in enumerate(guides):
         save_rgb(work / "guides" / f"{k}.png", g)
 
     sheet_png, sheet_rgb, palette = make_sheet(client, ch, note=f"{note} sheet")
-    save_rgb(root / "work" / "sheet.png", sheet_rgb)
+    save_rgb(root / "work" / ("sheet_front.png" if ch.view == "front" else "sheet.png"), sheet_rgb)
+    if ch.view == "front" and not (root / "work" / "sheet.png").exists():
+        save_rgb(root / "work" / "sheet.png", make_sheet(client, replace(ch, view="side"))[1])  # cached
     hide_legs, legs_stay = leg_policy(mode, hide_anchor_legs)
     rows, rgbs, timing = redraw_action(client, ch, guides, sheet_png, palette, work / "redraw", note,
                                        anchor, hide_legs, legs_stay)
@@ -108,14 +126,16 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
         w = csv.DictWriter(f, fieldnames=list(dict.fromkeys([*rows[0].keys(), "chosen", "needs_review"])))
         w.writeheader()
         w.writerows(rows)
-    save_rgb(work / "compare.png", tile([g for g, _ in guides] + rgbs, cols=len(guides)))
+    save_rgb(work / "compare.png", compare_sheet([g for g, _ in guides], rgbs))
 
     chosen = sorted((r for r in rows if r.get("chosen")), key=lambda r: r["frame"])
     result = {
-        "name": action, "mode": mode, "frames": len(chosen), "fps": action_fps(mode), "loop": mode != "once",
+        "name": action, "mode": mode, "frames": len(chosen), "fps": play_fps, "loop": mode in LOOP_MODES,
+        "view": ch.view,
         "passed": [bool(r["passed"]) for r in chosen],
         "attempts": len(rows), "first_try_pass": sum(bool(r["passed"]) for r in rows if r["attempt"] == 0),
-        "video": str(video), "actor": actor, "edges": list(edges), "sam_fps": round(fps, 2),
+        "video": str(video), "actor": actor, "edges": list(edges), "sam_fps": round(sam_fps, 2),
+        "start": start, "end": end,
         "anchor": anchor, "hide_anchor_legs": anchor == "first" and hide_legs, "legs_stay": legs_stay,
         **info, **timing,
         "track_seconds": round(t_track, 1), "seconds": round(time.perf_counter() - t0, 1),
@@ -124,6 +144,18 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     }
     (work / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
+
+
+def compare_sheet(guides: list[np.ndarray], redraws: list[np.ndarray], cols: int = 8) -> np.ndarray:
+    """Pose guides above their redraws, `cols` frames per row pair."""
+    if len(guides) <= cols:
+        return tile(guides + redraws, cols=len(guides))
+    images: list[np.ndarray] = []
+    for i in range(0, len(guides), cols):
+        g, r = guides[i : i + cols], redraws[i : i + cols]
+        blank = [np.full_like(guides[0], 255)] * (cols - len(g))
+        images += g + blank + r + blank
+    return tile(images, cols=cols)
 
 
 def _action_sort_key(name: str) -> tuple[int, str]:
@@ -155,6 +187,8 @@ def build_package(root: Path, ch: Character) -> Path:
     (pkg / "report" / "summary.md").write_text(_summary_md(name, ch.style, results), encoding="utf-8")
     (pkg / "reference").mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / "work" / "sheet.png", pkg / "reference" / "character_sheet.png")
+    if any(r.get("view") == "front" for r in results) and (root / "work" / "sheet_front.png").exists():
+        shutil.copy2(root / "work" / "sheet_front.png", pkg / "reference" / "character_sheet_front.png")
     if config.UNITY_IMPORTER.exists():
         (pkg / "unity").mkdir(exist_ok=True)
         shutil.copy2(config.UNITY_IMPORTER, pkg / "unity" / config.UNITY_IMPORTER.name)

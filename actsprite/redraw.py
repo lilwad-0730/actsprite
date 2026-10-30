@@ -117,7 +117,7 @@ def redraw_frame(client: MetaClient, ch: Character, out: Path, note: str, k: int
         sent = (ref.gen_png or ref.png) if ref is not None and use_ref else None
         legs_hidden = sent is not None and ref is not None and ref.legs_hidden
         png, _ = client.generate_image(
-            redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden),
+            redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden, ch.view),
             note=f"{note} f{k} a{attempt}")
         rgb = decode_rgb(png)
         save_rgb(out / f"{k}_a{attempt}.png", rgb)

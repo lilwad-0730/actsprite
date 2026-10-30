@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import cv2
@@ -12,7 +12,7 @@ from actsprite import config
 from actsprite.errors import PipelineError
 from actsprite.images import decode_rgb, png_bytes
 from actsprite.meta_client import MetaClient, print_estimate
-from actsprite.restyle import BODIES, STYLES, sheet_prompt, white_flood_cutout
+from actsprite.restyle import BODIES, STYLES, VIEWS, front_sheet_parts, sheet_prompt, white_flood_cutout
 from actsprite.verify import extract_palette
 
 
@@ -25,12 +25,15 @@ class Character:
     style: str = "pixel"  # key of restyle.STYLES
     sheet_path: str | None = None  # the user's own design is the reference sheet (nothing generated)
     sheet_faces_left: bool = False  # mirror the user's sheet: every frame is drawn facing right
+    view: str = "side"  # key of restyle.VIEW_LINES: side (facing right) or front (facing the viewer)
 
     def __post_init__(self) -> None:
         if self.body not in BODIES:
             raise PipelineError(f"Unknown body '{self.body}'; use one of {sorted(BODIES)}.")
         if self.style not in STYLES:
             raise PipelineError(f"Unknown style '{self.style}'; use one of {sorted(STYLES)}.")
+        if self.view not in VIEWS:
+            raise PipelineError(f"Unknown view '{self.view}'; use one of {', '.join(VIEWS)}.")
 
 
 # The three showcase characters. The descriptions are part of the cached prompts: keep them unchanged.
@@ -71,8 +74,14 @@ def user_sheet(ch: Character) -> np.ndarray:
 
 
 def make_sheet(client: MetaClient, ch: Character, note: str = "") -> tuple[bytes, np.ndarray, np.ndarray]:
-    """(png bytes, rgb, palette) of the reference sheet: the user's image, or one Muse Image generation."""
-    if ch.sheet_path:
+    """(png bytes, rgb, palette) of the reference sheet: the user's image, or one Muse Image generation.
+    Front view: one more Muse Image call draws the side-view sheet seen from the front."""
+    if ch.view == "front":
+        side_png, _, _ = make_sheet(client, replace(ch, view="side"), note)
+        print_estimate(f"front view sheet {ch.name} (Muse Image)", config.PRICE_IMAGE)
+        png, _ = client.generate_image(front_sheet_parts(side_png, ch.style), note=f"{note or ch.name} front sheet")
+        rgb = decode_rgb(png)
+    elif ch.sheet_path:
         rgb = user_sheet(ch)
         png = png_bytes(rgb)
     else:
