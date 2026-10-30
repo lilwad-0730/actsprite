@@ -95,7 +95,7 @@ Live preview: https://huggingface.co/spaces/Andy0730huggin/actsprite (showcase +
 ## Built during the hackathon (Oct 26 – Nov 4, 2026)
 
 Everything in this repository was created during the hackathon period. See the git history.
-The line-art character design (`man in line.jpg`) was drawn for this project on 2026-10-29 by a friend of the author.
+The line-art character design (`man in line.jpg`) was drawn for this project on 2026-10-29 by the girlfriend of the author.
 The only outside input is the test footage listed under Credits.
 
 ## Credits and licenses
