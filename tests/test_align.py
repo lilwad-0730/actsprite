@@ -68,3 +68,34 @@ def test_pose_guide_fill_and_head_lines_removed():
     assert (head == 205).all()  # only fill, no interior lines in the head band
     body = guide[t + int((b - t) * 0.5) : b - 4, l + 4 : r - 4, 0]
     assert (body == 0).any()
+
+
+def _arms_up() -> tuple[np.ndarray, np.ndarray]:
+    """Front view, both thin arms raised well above the head, light 'eyes' in the head."""
+    h, w = 400, 300
+    mask = np.zeros((h, w), bool)
+    mask[120:170, 125:175] = True  # head
+    mask[170:300, 105:195] = True  # torso
+    mask[300:390, 115:140] = True  # legs
+    mask[300:390, 160:185] = True
+    mask[20:180, 90:104] = True  # arms, thinner than the head, hands far above it
+    mask[20:180, 196:210] = True
+    img = np.full((h, w, 3), 90, np.uint8)
+    img[140:148, 135:165] = 230  # eyes
+    return img, mask
+
+
+def test_head_band_follows_the_head_when_arms_are_raised():
+    from actsprite.align import head_band_end
+
+    _, top, _, bottom = mask_bbox(figure())
+    assert head_band_end(figure(), 0.18) == top + int((bottom - top) * 0.18)  # nothing raised: as before
+    img, mask = _arms_up()
+    assert head_band_end(mask, 0.18) > 148  # below the eyes; the plain top-18% band ends at row 88
+    guide, _ = pose_guide(img, mask, size=256, margin=8, fill=True, head_fraction=0.18)
+    _, fitted, _ = fit_to_canvas(mask, 256, margin=8, image=img)
+    ys, xs = np.nonzero(fitted[..., 0] == 230)  # where the eyes landed
+    around = guide[ys.min() - 3 : ys.max() + 4, xs.min() - 3 : xs.max() + 4, 0]
+    assert not (around == 0).any()  # no eye lines left
+    old_guide, _ = pose_guide(img, mask, size=256, margin=8, fill=True, head_fraction=0.0)
+    assert (old_guide[ys.min() - 3 : ys.max() + 4, xs.min() - 3 : xs.max() + 4, 0] == 0).any()  # they were there

@@ -124,6 +124,21 @@ def _paste(dst: np.ndarray, src: np.ndarray, x: int, y: int) -> None:
         dst[y0:y1, x0:x1] = src[y0 - y : y1 - y, x0 - x : x1 - x]
 
 
+def head_band_end(mask: np.ndarray, fraction: float, limb_open: float = config.GUIDE_LIMB_OPEN) -> int:
+    """Row where the head band ends: `fraction` of the figure below the top of the head. The top of the head
+    is the top of the figure once limbs thinner than `limb_open` of its height are opened away, so arms
+    raised overhead do not push the band up above the face."""
+    _, top, _, bottom = mask_bbox(mask)
+    k = max(3, int((bottom - top) * limb_open)) | 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    opened = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(opened, 8)
+    if n > 1:
+        body = labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        top = max(top, mask_bbox(body)[1])
+    return top + int((bottom - top) * fraction)
+
+
 def pose_guide(
     image: np.ndarray,
     mask: np.ndarray,
@@ -137,8 +152,8 @@ def pose_guide(
     """Black-on-white line art of the subject only (no photo pixels leave this function).
 
     fill: paint the silhouette light gray under the lines (stronger pose signal).
-    head_fraction: drop interior lines in the top part of the figure (e.g. 0.18) so
-    facial features of a real actor never reach the image model.
+    head_fraction: drop interior lines from the top of the figure down to this share below the top of the
+    head (e.g. 0.18, see head_band_end) so facial features of a real actor never reach the image model.
     scale: pass shared_scale(...) of the whole action so height changes (crouch, jump) survive.
     Returns (guide_rgb, guide_mask) on a size x size canvas, feet on the bottom row.
     """
@@ -150,8 +165,7 @@ def pose_guide(
     inner = cv2.erode(fitted_mask.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
     edges &= inner
     if head_fraction > 0:
-        _, top, _, bottom = mask_bbox(fitted_mask)
-        edges[: top + int((bottom - top) * head_fraction)] = False
+        edges[: head_band_end(fitted_mask, head_fraction)] = False
 
     guide = np.full((size, size, 3), 255, dtype=np.uint8)
     if fill:

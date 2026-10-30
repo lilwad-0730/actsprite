@@ -46,6 +46,10 @@ CELL_MARGIN = 12  # px kept free above the head and at the sides
 GUIDE_SIZE = 512  # pose guide image sent to Muse Image
 GUIDE_FILL_GRAY = 205  # silhouette fill when the guide is drawn filled
 GUIDE_HEAD_FRACTION = 0.18  # top share of the figure with interior lines removed (no faces)
+# ...measured from the top of the head, not of the raised hands: limbs thinner than this share of the figure
+# height are opened away before finding the top. 10/30 dance clip: with arms overhead the old band held only the
+# hands and the face lines reached Muse Image; 0.06 and 0.08 both found the head on every saved keyframe.
+GUIDE_LIMB_OPEN = 0.08
 PALETTE_SIZE = 24
 SPRITE_PIXEL_SIZE = 64  # pixel styles: the art is drawn at this resolution (the showcase look)
 # Output contract (docs/02_product_spec.md 4.1-4.3): cell 128 for pixel art (each art pixel = 2x2), else CELL_SIZE;
