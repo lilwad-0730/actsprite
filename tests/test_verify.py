@@ -128,3 +128,16 @@ def test_frozen_frame_fails_and_ranks_below_moving_one():
     assert FrameScores(iou=0.7, pose=10, identity=10, drift=0.02).passed  # first frame: not checked
     anchored = FrameScores(iou=0.7, pose=10, identity=10, drift=0.02, leg_motion=0.05, copied_from="the first frame")
     assert "copied from the first frame" in anchored.failures()[0]
+
+
+def test_idle_legs_that_wander_fail_and_rank_below_steady_ones():
+    from actsprite.verify import leg_drift
+
+    still = _stance(0)
+    assert leg_drift(still, still, _stance(0, 6), _stance(0, 6)) == pytest.approx(0.0)  # held the stance
+    assert leg_drift(still, still, _stance(0, 6), _stance(25, 6)) > config.LEG_STAY_MARGIN  # stepped out
+    steady = FrameScores(iou=0.6, pose=8, identity=10, drift=0.02, leg_drift=0.0)
+    stepped = FrameScores(iou=0.7, pose=10, identity=10, drift=0.02, leg_drift=0.4)
+    assert steady.passed and stepped.restless and not stepped.passed
+    assert "standing pose of the first frame" in stepped.failures()[0]
+    assert steady.rank > stepped.rank

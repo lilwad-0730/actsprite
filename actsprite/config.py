@@ -73,6 +73,14 @@ REDRAW_WORKERS = 7
 LEG_ZONE_SHARE = 0.35  # bottom share of the figure height counted as legs
 LEG_MOTION_MIN = 0.25
 LEG_MOTION_GUIDE_MIN = 0.10  # guide legs changed less than this (idle): nothing to check
+# In-place loops (idle): the legs should stay as in frame 0, so frame 0 is sent whole and copying it is not a fault.
+# 10/30 knight idle: guide legs moved 0.09-0.23 from frame 0 and copies of frame 0 were the best frames, while
+# real copies elsewhere had guide changes of 0.24-0.98 (spikes/REPORT.md Day 4).
+LEGS_STAY_MODES = ("loop",)
+# ...but there the legs must not wander: a redraw whose legs moved from frame 0 more than the guide's legs did,
+# plus this margin, is redrawn. 10/30 knight idle: frames holding the stance moved 0.02-0.06 (guide 0.09-0.23),
+# frames that stepped or lunged moved 0.41-0.69.
+LEG_STAY_MARGIN = 0.15
 SCORE_WEIGHT_IOU = 0.3
 SCORE_WEIGHT_POSE = 0.2
 SCORE_WEIGHT_IDENTITY = 0.3

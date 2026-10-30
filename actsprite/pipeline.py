@@ -38,7 +38,7 @@ from actsprite.errors import PipelineError
 from actsprite.images import save_rgb, save_rgba, tile
 from actsprite.meta_client import MetaClient, estimate_sam_video_cost, print_estimate
 from actsprite.pack import action_fps, character_meta, export_cells, preview_gif, sheet_from_rows, sprite_cells
-from actsprite.redraw import redraw_action
+from actsprite.redraw import leg_policy, redraw_action
 from actsprite.restyle import STYLES
 from actsprite.sequence import choose_frames, make_guides, mode_for
 
@@ -93,8 +93,9 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
 
     sheet_png, sheet_rgb, palette = make_sheet(client, ch, note=f"{note} sheet")
     save_rgb(root / "work" / "sheet.png", sheet_rgb)
+    hide_legs, legs_stay = leg_policy(mode, hide_anchor_legs)
     rows, rgbs, timing = redraw_action(client, ch, guides, sheet_png, palette, work / "redraw", note,
-                                       anchor, hide_anchor_legs)
+                                       anchor, hide_legs, legs_stay)
 
     pixel_art = STYLES[ch.style].pixelate
     cells = sprite_cells(rgbs, [cutout(rgb, ch) for rgb in rgbs], palette,
@@ -115,7 +116,8 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
         "passed": [bool(r["passed"]) for r in chosen],
         "attempts": len(rows), "first_try_pass": sum(bool(r["passed"]) for r in rows if r["attempt"] == 0),
         "video": str(video), "actor": actor, "edges": list(edges), "sam_fps": round(fps, 2),
-        "anchor": anchor, "hide_anchor_legs": anchor == "first" and hide_anchor_legs, **info, **timing,
+        "anchor": anchor, "hide_anchor_legs": anchor == "first" and hide_legs, "legs_stay": legs_stay,
+        **info, **timing,
         "track_seconds": round(t_track, 1), "seconds": round(time.perf_counter() - t0, 1),
         "spent_usd": round(client.cost_log.total() - spent_before, 4),
         "api_calls": {k: client.calls[k] - calls_before[k] for k in client.calls},  # new = sent to Meta

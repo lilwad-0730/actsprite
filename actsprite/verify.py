@@ -57,13 +57,24 @@ def leg_zone(mask: np.ndarray, height: int = 200, share: float = config.LEG_ZONE
     return placed
 
 
+def leg_change(a: np.ndarray, b: np.ndarray) -> float:
+    """1 - IoU of the two figures' leg zones (0 = legs in the same place)."""
+    return 1.0 - mask_iou(leg_zone(a), leg_zone(b))
+
+
 def leg_motion(guide_prev: np.ndarray, guide: np.ndarray, cand_prev: np.ndarray, cand: np.ndarray) -> float | None:
     """How far the candidate's legs moved from the previous frame, relative to how far the pose
     guide's legs moved (about 1 = as much, near 0 = copied). None when the guide's legs barely move."""
-    g = 1.0 - mask_iou(leg_zone(guide_prev), leg_zone(guide))
+    g = leg_change(guide_prev, guide)
     if g < config.LEG_MOTION_GUIDE_MIN:
         return None
-    return (1.0 - mask_iou(leg_zone(cand_prev), leg_zone(cand))) / g
+    return leg_change(cand_prev, cand) / g
+
+
+def leg_drift(guide_ref: np.ndarray, guide: np.ndarray, cand_ref: np.ndarray, cand: np.ndarray) -> float:
+    """In-place loops (idle): how much further the candidate's legs moved from the reference frame than the
+    pose guide's legs did. 0 or less = it held the stance; above LEG_STAY_MARGIN = the legs wandered."""
+    return leg_change(cand_ref, cand) - leg_change(guide_ref, guide)
 
 
 def extract_palette(image: np.ndarray, mask: np.ndarray, colors: int = config.PALETTE_SIZE) -> np.ndarray:
@@ -106,6 +117,7 @@ class FrameScores:
     drift: float
     leg_motion: float | None = None  # see leg_motion(); None = not checked (first frame, still legs)
     copied_from: str = "the previous frame"  # the reference image the legs are compared with
+    leg_drift: float | None = None  # see leg_drift(); only for in-place loops (idle), None = not checked
 
     @property
     def frozen(self) -> bool:
@@ -113,9 +125,14 @@ class FrameScores:
         return self.leg_motion is not None and self.leg_motion < config.LEG_MOTION_MIN
 
     @property
+    def restless(self) -> bool:
+        """In-place loops: the legs left the stance of the first frame although the actor's legs stayed."""
+        return self.leg_drift is not None and self.leg_drift > config.LEG_STAY_MARGIN
+
+    @property
     def rank(self) -> tuple[bool, bool, float]:
-        """Sort key for picking the best attempt: passed first, then legs that moved, then score."""
-        return (self.passed, not self.frozen, self.combined)
+        """Sort key for picking the best attempt: passed first, then legs that behave, then score."""
+        return (self.passed, not (self.frozen or self.restless), self.combined)
 
     @property
     def combined(self) -> float:
@@ -134,6 +151,7 @@ class FrameScores:
             and self.identity >= config.IDENTITY_MIN
             and self.drift <= config.PALETTE_DRIFT_MAX
             and not self.frozen
+            and not self.restless
         )
 
     def failures(self) -> list[str]:
@@ -149,6 +167,9 @@ class FrameScores:
         if self.frozen:
             out.append(f"the legs are copied from {self.copied_from} (moved {self.leg_motion:.2f} of the pose guide's "
                        f"change < {config.LEG_MOTION_MIN}): put every leg and paw exactly where the pose guide has it")
+        if self.restless:
+            out.append(f"the legs moved away from the standing pose of the first frame ({self.leg_drift:.2f} more "
+                       f"than the pose guide's legs): keep both feet planted exactly as in the first frame")
         return out
 
 
