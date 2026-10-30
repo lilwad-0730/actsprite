@@ -89,7 +89,7 @@ def sheet_from_rows(rows: list[list[np.ndarray]]) -> np.ndarray:
 
 
 def action_fps(mode: str) -> int:
-    """Contract defaults: idle (loop) 8 fps, every other action 12."""
+    """Contract defaults: idle (loop) 8 fps, every other action 15."""
     return config.FPS_IDLE if mode == "loop" else config.FPS_ACTION
 
 

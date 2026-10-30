@@ -16,14 +16,14 @@
 | --- | --- | --- |
 | ![騎士](examples/previews/knight_dance.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物](examples/previews/lineman_attack.gif) |
 | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 48 幀中有 40 幀通過全部檢查 | 8 幀中有 5 幀 | 8 幀中有 5 幀 |
-| Meta API 呼叫費用 US$3.07 | US$0.73 | US$0.67 |
+| 48 幀中有 40 幀通過全部檢查 | 10 幀中有 4 幀 | 10 幀中有 6 幀 |
+| Meta API 呼叫費用 US$3.07 | US$1.01 | US$0.53 |
 
 每個 ZIP 內含 Sprite Sheet、供 Unity 匯入工具使用的 `<name>_meta.json`、每一幀的 PNG、GIF
 預覽，以及記錄每次重繪分數的 `report/scores.csv`（`needs_review` 代表該幀未通過所有檢查）。
 費用是 `logs/cost.csv` 中每個 ZIP 背後所有付費呼叫的總和，包含 SAM 3.1 影片追蹤、角色設定圖，
-以及每次重繪與檢查。8 幀的動作約需 3–4.5 分鐘（量測結果見 `spikes/REPORT.md` 的 Day 4），48 幀的舞蹈約 15 分鐘。
-獵犬和線稿人物的 ZIP 是從 API 快取重新建立，因此其 `report/summary.md` 會顯示 US$0，並註明原因。
+以及每次重繪與檢查。10 幀的動作約需 4–6 分鐘（量測結果見 `spikes/REPORT.md`），48 幀的舞蹈約 15 分鐘。
+獵犬和線稿人物的 ZIP 於 10/31 以 10 幀、15 fps 重新製作；費用只計新送出的呼叫（SAM 3.1 追蹤與部分重繪來自快取）。
 
 **2. 執行測試。** 不需要金鑰或網路；`tests/test_examples.py` 會依輸出合約檢查三個 ZIP。
 
@@ -81,8 +81,8 @@ actsprite_<name>/
 
 - `--view front`：角色改為正面朝向觀眾。會多一次 Muse Image 呼叫，把側面設定圖畫成同一角色的正面設定圖。
 - `--mode span`：在整段影片（或 `--start`／`--end` 指定的秒數範圍）平均取幀，不只挑一段爆發動作或一個循環。
-- `--frames N`：畫 N 幀（2–48，預設 8）。每幀含重繪約 US$0.03–0.10。
-- `--fps`：播放速度（1–30），或用 `auto` 依影片原速播放。預設：待機 8、其他動作 12、span 為 `auto`。
+- `--frames N`：畫 N 幀（2–48，預設：待機 8、其他動作 10）。每幀含重繪約 US$0.03–0.10。
+- `--fps`：播放速度（1–30），或用 `auto` 依影片原速播放。預設：待機 8、其他動作 15、span 為 `auto`。
 - `--head-turn`：另外用 SAM 3.1 追蹤主角的臉（約 US$0.04），讓角色的頭跟著轉（正面、微轉、四分之三側、側面、背面）。姿勢導引會多一塊只有形狀、沒有五官的臉部色塊，重繪和評審都會收到一句頭部方向說明。使用 `--view front` 時預設開啟。
 - `--sample-fps`：SAM 3.1 每秒追蹤幾張影格（1–60，預設 30，不會超過影片本身）。動作快又複雜、以 60 fps 拍攝時可以調高。
 

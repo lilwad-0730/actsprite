@@ -40,7 +40,7 @@ IMAGE_FORMAT = "png"
 
 # --- Pipeline -------------------------------------------------------------
 EXTRACT_FPS = 12
-FRAMES_PER_ACTION = 8
+FRAMES_PER_ACTION = 8  # spikes/ only; the pipeline uses FRAMES_IDLE / FRAMES_ACTION
 CELL_SIZE = 256
 CELL_MARGIN = 12  # px kept free above the head and at the sides
 GUIDE_SIZE = 512  # pose guide image sent to Muse Image
@@ -64,10 +64,12 @@ GUIDE_FACE_GRAY = 140  # the face patch on the pose guide (darker than GUIDE_FIL
 PALETTE_SIZE = 24
 SPRITE_PIXEL_SIZE = 64  # pixel styles: the art is drawn at this resolution (the showcase look)
 # Output contract (docs/02_product_spec.md 4.1-4.3): cell 128 for pixel art (each art pixel = 2x2), else CELL_SIZE;
-# fps idle 8, every other action 12.
+# fps idle 8, every other action 15 (10/31, user-approved: 10 frames at 15 fps keep the clip's speed).
 CELL_PIXEL_ART = 128
 FPS_IDLE = 8
-FPS_ACTION = 12
+FPS_ACTION = 15
+FRAMES_IDLE = 8  # default frames per action when --frames is not given
+FRAMES_ACTION = 10
 ACTION_ORDER = ("idle", "run", "walk", "jump", "attack")  # sheet rows; other actions follow alphabetically
 # User settings (10/30, approved to go beyond the spec's 6-12 frames / 8-24 fps so a whole dance fits):
 # frames per action and playback fps. "auto" fps plays the frames at the clip's own speed.

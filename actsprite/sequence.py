@@ -28,7 +28,7 @@ def mode_for(action: str, mode: str | None = None) -> str:
 
 
 def choose_frames(masks: np.ndarray, fps: float, mode: str, edges: tuple[str, ...],
-                  frames: int = config.FRAMES_PER_ACTION, start: float | None = None,
+                  frames: int = config.FRAMES_ACTION, start: float | None = None,
                   end: float | None = None) -> tuple[dict, np.ndarray]:
     """Keyframes plus a per-frame scale factor (1 unless walking/running, where it cancels the
     subject moving toward or away from the camera; idle and one-shot actions stay in place).

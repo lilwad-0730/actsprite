@@ -35,10 +35,10 @@ SHOWCASE = config.ROOT / "showcase"
 SHOWCASE_ITEMS = [
     ("knight_attack", "Pixel knight - attack", "Phone clip of the author. 5 of 8 frames passed every check."),
     ("hound_walk", "Pixel hound - walk cycle",
-     "Pexels clip by Luis Adolfo Burgos. One 22-frame stride. 4 of 8 frames passed; the head height "
-     "still drifts between frames (being fixed)."),
+     "Pexels clip by Luis Adolfo Burgos. One 22-frame stride, 10 frames at 15 fps. 4 of 10 frames passed "
+     "every check."),
     ("lineman_attack", "Line-art man - attack",
-     "Same attack clip, redrawn as a friend's line-art design. 5 of 8 frames passed."),
+     "Same attack clip, redrawn as a friend's line-art design. 10 frames at 15 fps; 6 of 10 passed."),
 ]
 # Spaces sets CPU_CORES; os.cpu_count() can report the whole host inside a container.
 WORKERS = max(1, int(os.environ.get("CPU_CORES") or os.cpu_count() or 1))

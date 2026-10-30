@@ -97,7 +97,7 @@ def test_playback_fps_defaults_and_limits():
     from actsprite.pipeline import playback_fps
 
     info = {"keyframes": [0, 12, 24, 35, 47, 59]}
-    assert playback_fps(None, info, 30.0, "once") == 12 and isinstance(playback_fps(None, info, 30.0, "once"), int)
+    assert playback_fps(None, info, 30.0, "once") == 15 and isinstance(playback_fps(None, info, 30.0, "once"), int)
     assert playback_fps(None, info, 30.0, "loop") == 8
     assert playback_fps(None, info, 30.0, "span") == pytest.approx(2.5)
     assert playback_fps("auto", info, 30.0, "once") == pytest.approx(2.5)
@@ -125,3 +125,10 @@ def test_compare_sheet_wraps_long_actions():
     g = [np.full((32, 32, 3), 200, np.uint8)] * 16
     assert compare_sheet(g, g).shape == (4 * 256, 8 * 256, 3)  # guides/redraws row pairs, 8 per row
     assert compare_sheet(g[:8], g[:8]).shape == (2 * 256, 8 * 256, 3)  # 8 frames: as before
+
+
+def test_frames_default_follows_the_action():
+    from actsprite.__main__ import parse_args
+
+    assert parse_args(["clip.mp4", "--action", "run"]).frames is None  # pipeline picks idle 8 / others 10
+    assert config.FRAMES_IDLE == 8 and config.FRAMES_ACTION == 10 and config.FPS_ACTION == 15

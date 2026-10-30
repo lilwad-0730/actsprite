@@ -98,12 +98,12 @@ def playback_fps(fps: float | str | None, info: dict, sam_fps: float, mode: str)
 
 def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: str = "person",
                mode: str | None = None, edges: tuple[str, ...] = config.FULL_BODY_EDGES, anchor: str = "first",
-               hide_anchor_legs: bool = True, frames: int = config.FRAMES_PER_ACTION,
+               hide_anchor_legs: bool = True, frames: int | None = None,
                fps: float | str | None = None, start: float | None = None, end: float | None = None,
                head_turn: bool | None = None, sample_fps: float = config.SAM_VIDEO_FPS,
                client: MetaClient | None = None) -> dict:
     """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result.
-    frames: keyframes to draw; fps: playback speed (see playback_fps); start/end: part of the clip in seconds.
+    frames: keyframes to draw (default: idle 8, others 10); fps: playback speed (see playback_fps); start/end: part of the clip in seconds.
     head_turn: also track the face with SAM 3.1 so the drawn head turns like the actor's (None: on in front view).
     sample_fps: frames per second of the clip sent to SAM 3.1 for tracking."""
     if not config.SAMPLE_FPS_MIN <= sample_fps <= config.SAMPLE_FPS_MAX:
@@ -111,6 +111,8 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
                             f"not {sample_fps:g}.")
     head_turn = ch.view == "front" if head_turn is None else head_turn
     mode = mode_for(action, mode)
+    if frames is None:
+        frames = config.FRAMES_IDLE if mode == "loop" else config.FRAMES_ACTION
     client = client or MetaClient()
     work = root / "work" / action
     spent_before = client.cost_log.total()

@@ -17,7 +17,7 @@ def _fake_action(root, name, mode, frames, passed):
         Image.fromarray(cell, "RGBA").save(work / "cells" / f"{k:02d}.png")
     (work / "scores.csv").write_text("frame,attempt,passed,chosen,needs_review\n0,0,True,True,False\n",
                                      encoding="utf-8")
-    result = {"name": name, "mode": mode, "frames": frames, "fps": 8 if mode == "loop" else 12,
+    result = {"name": name, "mode": mode, "frames": frames, "fps": 8 if mode == "loop" else 15,
               "loop": mode != "once", "passed": passed, "attempts": frames, "seconds": 60.0, "spent_usd": 0.5,
               "api_calls": {"new": 0 if name == "idle" else 24, "cached": 3}}
     (work / "result.json").write_text(json.dumps(result), encoding="utf-8")

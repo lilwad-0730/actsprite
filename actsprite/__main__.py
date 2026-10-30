@@ -41,9 +41,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                     help="frame edges the actor must not touch, e.g. left,right when the feet touch the bottom")
     ap.add_argument("--out", type=Path, help="output folder (default: out/<character>)")
     t = ap.add_argument_group("frames and timing")
-    t.add_argument("--frames", type=int, default=config.FRAMES_PER_ACTION,
+    t.add_argument("--frames", type=int,
                    help=f"frames to draw for this action, {config.FRAMES_MIN}-{config.FRAMES_MAX} "
-                        f"(default {config.FRAMES_PER_ACTION}); every frame costs about $0.03-0.10")
+                        f"(default: idle {config.FRAMES_IDLE}, others {config.FRAMES_ACTION}); every frame costs about $0.03-0.10")
     t.add_argument("--fps", type=_fps,
                    help=f"playback speed, {config.FPS_MIN:g}-{config.FPS_MAX:g}, or auto (as fast as in the clip). "
                         f"Default: idle {config.FPS_IDLE}, others {config.FPS_ACTION}, span auto")

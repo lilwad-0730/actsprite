@@ -16,15 +16,16 @@ Act out a move on your phone. Get a consistent, game-ready animated character in
 | --- | --- | --- |
 | ![knight](examples/previews/knight_dance.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man](examples/previews/lineman_attack.gif) |
 | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 40/48 frames passed every check | 5/8 | 5/8 |
-| $3.07 in Meta API calls | $0.73 | $0.67 |
+| 40/48 frames passed every check | 4/10 | 6/10 |
+| $3.07 in Meta API calls | $1.01 | $0.53 |
 
 Inside each ZIP: the sprite sheet, `<name>_meta.json` for the Unity importer, every frame as a PNG, a GIF
 preview, and `report/scores.csv` with the scores of every redraw attempt (`needs_review` marks the frames that did
 not pass every check). The spend is the sum of every paid call behind each ZIP in `logs/cost.csv`: the SAM 3.1
-video track, the character sheet and every redraw and check. An 8-frame action takes about 3-4.5 minutes
-(measurements in `spikes/REPORT.md`, Day 4); the 48-frame dance took 15 minutes. The hound and line-art ZIPs
-were rebuilt from the API cache, so their own `report/summary.md` shows $0 and says so.
+video track, the character sheet and every redraw and check. A 10-frame action takes about 4-6 minutes
+(measurements in `spikes/REPORT.md`); the 48-frame dance took 15 minutes. The hound and line-art ZIPs were
+remade on Oct 31 at 10 frames / 15 fps; their spend counts new calls only (the SAM 3.1 track and some redraws
+came from the cache).
 
 **2. Run the tests.** No key and no network needed; `tests/test_examples.py` checks the three ZIPs against the
 output contract.
@@ -85,9 +86,9 @@ Options for moves filmed facing the camera, such as a dance:
   into a front-view sheet of the same design.
 - `--mode span` spreads the frames evenly over the whole clip, or over `--start`/`--end` (seconds), instead of
   picking one burst or one loop.
-- `--frames N` draws N frames (2-48, default 8). Each frame costs about $0.03-0.10 with its redraws.
+- `--frames N` draws N frames (2-48, default: idle 8, other actions 10). Each frame costs about $0.03-0.10 with its redraws.
 - `--fps` sets the playback speed (1-30), or `auto` to play as fast as the clip. Defaults: idle 8, other
-  actions 12, span `auto`.
+  actions 15, span `auto`.
 - `--head-turn` also tracks the actor's face with SAM 3.1 (about $0.04), so the drawn head turns the same way:
   facing the viewer, turned slightly, three-quarter, profile, or away. The pose guide gets a flat face patch
   (shape only, no features) and the redraw and the critic get one sentence. On by default with `--view front`.

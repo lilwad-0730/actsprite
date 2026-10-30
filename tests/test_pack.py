@@ -51,7 +51,7 @@ def test_contract_meta_rows_and_pivot():
         "character": "knight", "style": "pixel", "cell": {"width": 128, "height": 128},
         "pivot": {"x": 0.5, "y": 0.0},
         "actions": [{"name": "idle", "row": 0, "frames": 8, "fps": 8, "loop": True},
-                    {"name": "jump", "row": 1, "frames": 8, "fps": 12, "loop": False}],
+                    {"name": "jump", "row": 1, "frames": 8, "fps": 15, "loop": False}],
     }
 
 
