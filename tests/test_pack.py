@@ -67,3 +67,46 @@ def test_sheet_rows_and_pixel_cells():
     assert (sheet[128:, 128:] == 0).all()  # the shorter row leaves transparent cells
     with pytest.raises(ValueError):
         sheet_from_rows([big, small])  # one cell size per character
+
+
+def test_follow_guide_height_squashes_shorter_guides_keeps_feet():
+    from actsprite.pack import follow_guide_height
+
+    def figure(top, size=100):
+        m = np.zeros((size, 40), bool)
+        m[top:, 10:30] = True
+        return m
+
+    cuts = [figure(5), figure(5), figure(5)]  # redraws: always full height
+    rgbs = [np.where(c[..., None], 50, 255).astype(np.uint8).repeat(3, 2) for c in cuts]
+    guides = [figure(10), figure(20), figure(10)]  # the actor crouches in frame 1
+    new_rgbs, new_cuts, f = follow_guide_height(rgbs, cuts, guides)
+    tops = [int(np.nonzero(c)[0].min()) for c in new_cuts]
+    assert f[0] == 1.0 and f[2] == 1.0 and f[1] < 1.0
+    assert tops[0] == 5 and tops[1] > 15  # frame 1 is shorter by about the guide's drop
+    assert all(c.shape == (100, 40) and c[-1].any() for c in new_cuts)  # canvas kept, feet on the bottom row
+    assert all(r.shape == (100, 40, 3) for r in new_rgbs)
+
+
+def test_follow_guide_height_never_stretches_and_skips_empty():
+    from actsprite.pack import follow_guide_height
+    m = np.zeros((50, 20), bool)
+    m[10:, 5:15] = True
+    rgb = np.full((50, 20, 3), 255, np.uint8)
+    _, _, f = follow_guide_height([rgb, rgb], [m, m], [m, m])
+    assert f == [1.0, 1.0]
+    _, cuts, f = follow_guide_height([rgb], [m], [np.zeros_like(m)])
+    assert f == [1.0] and cuts[0] is m
+
+
+def test_follow_guide_height_keeps_frame0_size_and_caps_taller_frames():
+    from actsprite.pack import follow_guide_height
+    m = np.zeros((100, 20), bool)
+    m[5:, 5:15] = True
+    rgb = np.full((100, 20, 3), 255, np.uint8)
+    tall, short, base = np.zeros_like(m), np.zeros_like(m), np.zeros_like(m)
+    base[20:] = True
+    tall[0:] = True  # arms up: taller than frame 0
+    short[40:] = True  # crouch
+    _, _, f = follow_guide_height([rgb] * 3, [m] * 3, [base, tall, short])
+    assert f[0] == 1.0 and f[1] == 1.0 and abs(f[2] - 60 / 80) < 0.01

@@ -117,6 +117,8 @@ def test_cli_options():
                        "--fps", "auto", "--end", "2"])
     assert (args.view, args.frames, args.fps, args.end, args.start) == ("front", 16, "auto", 2.0, None)
     assert parse_args(["a.mov", "--action", "attack"]).view == "side"
+    assert parse_args(["a.mov", "--action", "attack"]).feet_planted is False
+    assert parse_args(["a.mov", "--action", "attack", "--feet-planted"]).feet_planted is True
 
 
 def test_compare_sheet_wraps_long_actions():

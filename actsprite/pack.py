@@ -53,6 +53,39 @@ def upscale_nearest(image: np.ndarray, factor: int) -> np.ndarray:
     return cv2.resize(image, (image.shape[1] * factor, image.shape[0] * factor), interpolation=cv2.INTER_NEAREST)
 
 
+def _height(mask: np.ndarray) -> int:
+    ys = np.nonzero(mask)[0]
+    return int(ys.max() - ys.min() + 1) if len(ys) else 0
+
+
+def follow_guide_height(rgbs: list[np.ndarray], cuts: list[np.ndarray],
+                        guide_masks: list[np.ndarray]) -> tuple[list[np.ndarray], list[np.ndarray], list[float]]:
+    """Squash each redraw vertically so the figure's height changes from frame to frame like the actor's in the
+    pose guides (Muse Image draws every frame at full height). Frame 0 (the anchor, drawn at the size every other
+    action uses) keeps its size; nothing is stretched past the drawn size. The canvas size stays and the freed rows
+    go on top, so the feet stay where they were.
+    Returns the new redraws, their cutouts and the factor used per frame."""
+    gh = np.array([_height(m) for m in guide_masks], float)
+    rh = np.array([_height(c) for c in cuts], float)
+    if (gh == 0).any() or (rh == 0).any():
+        return rgbs, cuts, [1.0] * len(rgbs)
+    f = (gh / np.median(gh)) / (rh / np.median(rh))
+    f = np.minimum(f / f[0], 1.0)
+    new_rgbs, new_cuts = [], []
+    for rgb, cut, s in zip(rgbs, cuts, f):
+        h, w = cut.shape
+        nh = max(1, round(h * s))
+        if nh == h:
+            new_rgbs.append(rgb)
+            new_cuts.append(cut)
+            continue
+        small = cv2.resize(rgb, (w, nh), interpolation=cv2.INTER_AREA)
+        small_cut = cv2.resize(cut.astype(np.uint8), (w, nh), interpolation=cv2.INTER_NEAREST) > 0
+        new_rgbs.append(np.vstack([np.full((h - nh, w, 3), 255, np.uint8), small]))
+        new_cuts.append(np.vstack([np.zeros((h - nh, w), bool), small_cut]))
+    return new_rgbs, new_cuts, [round(float(s), 4) for s in f]
+
+
 def sprite_cells(rgbs: list[np.ndarray], cuts: list[np.ndarray], palette: np.ndarray,
                  pixel_size: int | None) -> list[np.ndarray]:
     """One RGBA cell per redrawn frame: feet on the bottom row, horizontally centred, the same scale for every

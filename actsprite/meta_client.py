@@ -167,6 +167,10 @@ class CacheMiss(RuntimeError):
     """Offline mode needed a response that is not in the cache."""
 
 
+class ContentRefused(RuntimeError):
+    """The API's content filter refused this request (HTTP 400). Nothing is charged or cached."""
+
+
 class MetaClient:
     def __init__(
         self,
@@ -244,7 +248,12 @@ class MetaClient:
         self.check_budget(estimate_usd)
         self._count("new")
         t0 = time.perf_counter()
-        response = self._client.responses.create(**payload)
+        try:
+            response = self._client.responses.create(**payload)
+        except Exception as e:
+            if getattr(e, "status_code", None) == 400 and "content management policy" in str(e):
+                raise ContentRefused(f"{operation} '{note}' was refused by the content filter.") from e
+            raise
         latency = time.perf_counter() - t0
         data = response.model_dump(mode="json")
         cost = cost_fn(data)

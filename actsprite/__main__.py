@@ -73,6 +73,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="first: frames 1-7 refer to frame 0 and are drawn at once; previous: one at a time")
     r.add_argument("--show-anchor-legs", action="store_true",
                    help="send frame 0 whole (by default its legs are painted out so they cannot be copied)")
+    r.add_argument("--feet-planted", action="store_true",
+                   help="the feet stay where they are in the first frame, e.g. a punch: frames whose legs move "
+                        "away from it are redrawn (idle always does this)")
     return ap.parse_args(argv)
 
 
@@ -112,7 +115,8 @@ def main(argv: list[str] | None = None) -> int:
         result, zip_path = run(args.video, root, args.action, ch, actor=args.actor, mode=args.mode, edges=edges,
                                anchor=args.anchor, hide_anchor_legs=not args.show_anchor_legs,
                                frames=args.frames, fps=args.fps, start=args.start, end=args.end,
-                               head_turn=args.head_turn, sample_fps=args.sample_fps)
+                               head_turn=args.head_turn, sample_fps=args.sample_fps,
+                               feet_planted=args.feet_planted)
     except (PipelineError, MissingApiKey, BudgetExceeded, CacheMiss) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

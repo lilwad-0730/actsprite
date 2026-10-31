@@ -63,6 +63,11 @@ HEAD_YAW_PROFILE = 0.40  # from here: profile
 GUIDE_FACE_GRAY = 140  # the face patch on the pose guide (darker than GUIDE_FILL_GRAY)
 PALETTE_SIZE = 24
 SPRITE_PIXEL_SIZE = 64  # pixel styles: the art is drawn at this resolution (the showcase look)
+# Muse Image draws the figure at full canvas height in every frame, so an idle's up-down bob is lost in the redraw
+# (10/31 refilmed idle: guide head moved 4.3-11.5% of the canvas, every redraw 2.9-3.5%). In these modes each
+# redraw is squashed so its height follows its pose guide (pack.follow_guide_height); 10/31, user-approved for
+# idle, then for one-shot actions (the knight's jump guides crouch to 79% of standing, every redraw stayed 90%+).
+HEIGHT_FOLLOW_MODES = ("loop", "once", "span")
 # Output contract (docs/02_product_spec.md 4.1-4.3): cell 128 for pixel art (each art pixel = 2x2), else CELL_SIZE;
 # fps idle 8, every other action 15 (10/31, user-approved: 10 frames at 15 fps keep the clip's speed).
 CELL_PIXEL_ART = 128

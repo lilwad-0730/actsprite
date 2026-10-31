@@ -111,3 +111,21 @@ def test_offline_mode_answers_from_cache_only(tmp_path, monkeypatch):
         client._call({"model": "m", "input": "not cached"}, **call)  # never reaches the network
     assert not log.path.exists()  # offline runs log nothing
     assert client.calls == {"cached": 1, "new": 0}
+
+
+def test_content_filter_refusal_is_its_own_error(tmp_path):
+    from actsprite.meta_client import ContentRefused
+
+    class Refused(Exception):
+        status_code = 400
+
+    class Responses:
+        def create(self, **payload):
+            raise Refused("Error code: 400 - The response was filtered due to the prompt triggering our "
+                          "content management policy.")
+
+    client = MetaClient(api_key="test", cache_dir=tmp_path / "cache", cost_log=CostLog(tmp_path / "cost.csv"))
+    client._client = type("C", (), {"responses": Responses()})()
+    with pytest.raises(ContentRefused):
+        client._call({"model": "m", "input": "x"}, operation="t", estimate_usd=0.0, units=1, cost_fn=lambda d: 0.0)
+    assert not (tmp_path / "cache").exists() or not any((tmp_path / "cache").iterdir())  # nothing cached

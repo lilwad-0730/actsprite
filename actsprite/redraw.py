@@ -24,7 +24,8 @@ from actsprite import config
 from actsprite.capture import largest_object, parse_sam_output
 from actsprite.characters import Character, cutout
 from actsprite.images import decode_rgb, png_bytes, save_rgb
-from actsprite.meta_client import MetaClient, print_estimate
+from actsprite.errors import PipelineError
+from actsprite.meta_client import ContentRefused, MetaClient, print_estimate
 from actsprite.restyle import hide_legs, redraw_parts
 from actsprite.verify import (
     CRITIC_SCHEMA,
@@ -116,9 +117,19 @@ def redraw_frame(client: MetaClient, ch: Character, out: Path, note: str, k: int
     for attempt in range(config.MAX_REGENERATIONS + 1):
         sent = (ref.gen_png or ref.png) if ref is not None and use_ref else None
         legs_hidden = sent is not None and ref is not None and ref.legs_hidden
-        png, _ = client.generate_image(
-            redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden, ch.view, head),
-            note=f"{note} f{k} a{attempt}")
+        try:
+            png, _ = client.generate_image(
+                redraw_parts(sheet_png, guide_png, sent, ch.style, fix, ch.body, anchor, legs_hidden, ch.view, head),
+                note=f"{note} f{k} a{attempt}")
+        except ContentRefused:
+            if best is None:
+                raise PipelineError(f"Muse Image refused to draw frame {k} (content filter). Try another part of "
+                                    "the clip with --start/--end.") from None
+            # A retry's fix text (written by the critic) can trip the filter: keep the best attempt so far.
+            print(f"[warn] {note} f{k} a{attempt}: refused by the content filter; keeping attempt "
+                  f"{best_row['attempt']}", flush=True)
+            best_row["refused_retry"] = True
+            break
         rgb = decode_rgb(png)
         save_rgb(out / f"{k}_a{attempt}.png", rgb)
         cut = cutout(rgb, ch)

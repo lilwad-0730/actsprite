@@ -40,7 +40,8 @@ from actsprite.errors import PipelineError
 from actsprite.head import head_pose
 from actsprite.images import save_rgb, save_rgba, tile
 from actsprite.meta_client import MetaClient, estimate_sam_video_cost, print_estimate
-from actsprite.pack import action_fps, character_meta, export_cells, preview_gif, sheet_from_rows, sprite_cells
+from actsprite.pack import (action_fps, character_meta, export_cells, follow_guide_height, preview_gif,
+                            sheet_from_rows, sprite_cells)
 from actsprite.redraw import leg_policy, redraw_action
 from actsprite.restyle import STYLES
 from actsprite.sequence import LOOP_MODES, choose_frames, clip_fps, make_guides, mode_for
@@ -101,11 +102,12 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
                hide_anchor_legs: bool = True, frames: int | None = None,
                fps: float | str | None = None, start: float | None = None, end: float | None = None,
                head_turn: bool | None = None, sample_fps: float = config.SAM_VIDEO_FPS,
-               client: MetaClient | None = None) -> dict:
+               feet_planted: bool = False, client: MetaClient | None = None) -> dict:
     """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result.
     frames: keyframes to draw (default: idle 8, others 10); fps: playback speed (see playback_fps); start/end: part of the clip in seconds.
     head_turn: also track the face with SAM 3.1 so the drawn head turns like the actor's (None: on in front view).
-    sample_fps: frames per second of the clip sent to SAM 3.1 for tracking."""
+    sample_fps: frames per second of the clip sent to SAM 3.1 for tracking.
+    feet_planted: the feet stay where they are in frame 0 (e.g. a punch), checked like idle's."""
     if not config.SAMPLE_FPS_MIN <= sample_fps <= config.SAMPLE_FPS_MAX:
         raise PipelineError(f"--sample-fps must be {config.SAMPLE_FPS_MIN:g}-{config.SAMPLE_FPS_MAX:g}, "
                             f"not {sample_fps:g}.")
@@ -136,19 +138,23 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     save_rgb(root / "work" / ("sheet_front.png" if ch.view == "front" else "sheet.png"), sheet_rgb)
     if ch.view == "front" and not (root / "work" / "sheet.png").exists():
         save_rgb(root / "work" / "sheet.png", make_sheet(client, replace(ch, view="side"))[1])  # cached
-    hide_legs, legs_stay = leg_policy(mode, hide_anchor_legs)
+    hide_legs, legs_stay = (False, True) if feet_planted else leg_policy(mode, hide_anchor_legs)
     rows, rgbs, timing = redraw_action(client, ch, guides, sheet_png, palette, work / "redraw", note,
                                        anchor, hide_legs, legs_stay, heads)
 
     pixel_art = STYLES[ch.style].pixelate
-    cells = sprite_cells(rgbs, [cutout(rgb, ch) for rgb in rgbs], palette,
-                         config.SPRITE_PIXEL_SIZE if pixel_art else None)
+    cuts = [cutout(rgb, ch) for rgb in rgbs]
+    height_follow = None
+    cell_rgbs = rgbs
+    if mode in config.HEIGHT_FOLLOW_MODES:  # idle: keep the actor's up-down bob that Muse Image drops
+        cell_rgbs, cuts, height_follow = follow_guide_height(rgbs, cuts, [m for _, m in guides])
+    cells = sprite_cells(cell_rgbs, cuts, palette, config.SPRITE_PIXEL_SIZE if pixel_art else None)
     for k, cell in enumerate(export_cells(cells, pixel_art)):
         save_rgba(work / "cells" / f"{k:02d}.png", cell)
     for r in rows:
         r["needs_review"] = bool(r.get("chosen")) and not r["passed"]
     with (work / "scores.csv").open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(dict.fromkeys([*rows[0].keys(), "chosen", "needs_review"])))
+        w = csv.DictWriter(f, fieldnames=list(dict.fromkeys([*(k for r in rows for k in r), "chosen", "needs_review"])))
         w.writeheader()
         w.writerows(rows)
     save_rgb(work / "compare.png", compare_sheet([g for g, _ in guides], rgbs))
@@ -156,7 +162,7 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     chosen = sorted((r for r in rows if r.get("chosen")), key=lambda r: r["frame"])
     result = {
         "name": action, "mode": mode, "frames": len(chosen), "fps": play_fps, "loop": mode in LOOP_MODES,
-        "view": ch.view, "head_turn": faces is not None, "heads": heads,
+        "view": ch.view, "head_turn": faces is not None, "height_follow": height_follow, "heads": heads,
         "head_yaw": [None if p is None else round(p.yaw, 3) for p in poses] if poses else None,
         "passed": [bool(r["passed"]) for r in chosen],
         "attempts": len(rows), "first_try_pass": sum(bool(r["passed"]) for r in rows if r["attempt"] == 0),
@@ -247,6 +253,10 @@ def _summary_md(name: str, style: str, results: list[dict]) -> str:
         if calls and calls.get("new") == 0:
             rebuilt.append(r["name"])
     lines += ["", f"Total spend: ${sum(r['spent_usd'] for r in results):.2f} (cached calls are free)."]
+    for r in results:
+        for e in r.get("hand_edits") or []:
+            lines += ["", f"Edited by hand in {r['name']}: frames {', '.join(map(str, e['frames']))} are copies of "
+                          f"frame {e['copy_of']} ({e['why']}). They are not redraws and count as not passed."]
     if rebuilt:
         lines += ["", f"Rebuilt from the API cache with no new Meta API calls: {', '.join(rebuilt)}. Their time and "
                       "spend are those of the rebuild, not of a first run (see the project README for measured runs)."]
