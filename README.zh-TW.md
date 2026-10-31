@@ -12,12 +12,14 @@
 
 **1. 查看完成的輸出。** 每個 ZIP 都是處理流程實際交付給 Unity 的內容：
 
-| 像素騎士：舞蹈（正面、48 幀） | 像素獵犬：行走 | 線稿人物：跑步（20 幀）與攻擊 |
+| 像素騎士：舞蹈（正面、48 幀）與跳躍（12 幀） | 像素獵犬：行走 | 線稿人物：跑步（20 幀）與攻擊 |
 | --- | --- | --- |
-| ![騎士](examples/previews/knight_dance.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物跑步](examples/previews/lineman_run.gif) ![線稿人物攻擊](examples/previews/lineman_attack.gif) |
+| ![騎士舞蹈](examples/previews/knight_dance.gif) ![騎士跳躍](examples/previews/knight_jump.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物跑步](examples/previews/lineman_run.gif) ![線稿人物攻擊](examples/previews/lineman_attack.gif) |
 | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 48 幀中有 40 幀通過全部檢查 | 10 幀中有 4 幀 | 跑步 20 幀中有 16 幀，攻擊 10 幀中有 6 幀 |
-| Meta API 呼叫費用 US$3.07 | US$1.01 | US$1.21 + US$0.53 |
+| 舞蹈：48 幀中有 40 幀通過全部檢查 | 10 幀中有 4 幀 | 跑步 20 幀中有 16 幀，攻擊 10 幀中有 6 幀 |
+| 舞蹈：Meta API 呼叫費用 US$3.07 | US$1.01 | US$1.21 + US$0.53 |
+
+騎士跳躍為額外的 GIF 預覽；騎士 ZIP 目前只包含舞蹈。
 
 每個 ZIP 內含 Sprite Sheet、供 Unity 匯入工具使用的 `<name>_meta.json`、每一幀的 PNG、GIF
 預覽，以及記錄每次重繪分數的 `report/scores.csv`（`needs_review` 代表該幀未通過所有檢查）。

@@ -13,12 +13,14 @@ playable character; the full web flow comes next.
 
 **1. Look at finished output.** Each ZIP is exactly what the pipeline hands to Unity:
 
-| Pixel knight, dance (front view, 48 frames) | Pixel hound, walk | Line-art man, run (20 frames) and attack |
+| Pixel knight, dance (front view, 48 frames) and jump (12 frames) | Pixel hound, walk | Line-art man, run (20 frames) and attack |
 | --- | --- | --- |
-| ![knight](examples/previews/knight_dance.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man running](examples/previews/lineman_run.gif) ![line-art man attacking](examples/previews/lineman_attack.gif) |
+| ![knight dancing](examples/previews/knight_dance.gif) ![knight jumping](examples/previews/knight_jump.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man running](examples/previews/lineman_run.gif) ![line-art man attacking](examples/previews/lineman_attack.gif) |
 | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 40/48 frames passed every check | 4/10 | run 16/20, attack 6/10 |
-| $3.07 in Meta API calls | $1.01 | $1.21 + $0.53 |
+| Dance: 40/48 frames passed every check | 4/10 | run 16/20, attack 6/10 |
+| Dance: $3.07 in Meta API calls | $1.01 | $1.21 + $0.53 |
+
+The knight jump is an additional GIF preview; the knight ZIP contains the dance only.
 
 Inside each ZIP: the sprite sheet, `<name>_meta.json` for the Unity importer, every frame as a PNG, a GIF
 preview, and `report/scores.csv` with the scores of every redraw attempt (`needs_review` marks the frames that did
