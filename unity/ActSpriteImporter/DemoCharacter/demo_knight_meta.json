@@ -1,0 +1,42 @@
+{
+  "character": "demo_knight",
+  "style": "pixel",
+  "cell": {
+    "width": 128,
+    "height": 128
+  },
+  "pivot": {
+    "x": 0.5,
+    "y": 0.0
+  },
+  "actions": [
+    {
+      "name": "idle",
+      "row": 0,
+      "frames": 8,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "name": "run",
+      "row": 1,
+      "frames": 8,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "name": "jump",
+      "row": 2,
+      "frames": 12,
+      "fps": 8.9,
+      "loop": false
+    },
+    {
+      "name": "attack",
+      "row": 3,
+      "frames": 15,
+      "fps": 15,
+      "loop": false
+    }
+  ]
+}

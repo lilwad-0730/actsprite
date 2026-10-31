@@ -1,0 +1,15 @@
+{
+  "name": "com.actsprite.importer",
+  "version": "0.1.0",
+  "displayName": "ActSprite Importer",
+  "description": "Turns an ActSprite ZIP (sprite sheet + meta JSON) into sliced sprites, animation clips, an Animator Controller and a playable character prefab. Also builds a small demo scene.",
+  "unity": "6000.0",
+  "license": "MIT",
+  "dependencies": {
+    "com.unity.2d.sprite": "1.0.0"
+  },
+  "author": {
+    "name": "ActSprite",
+    "url": "https://github.com/lilwad-0730/actsprite"
+  }
+}
