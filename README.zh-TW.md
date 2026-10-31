@@ -6,24 +6,24 @@
 
 用手機演出一個動作，取得角色一致、可直接在 Unity 使用的遊戲動畫。
 
-**狀態：** 開發中。目前命令列已能執行完整處理流程；Unity 匯入工具與完整網頁流程將接續完成。
+**狀態：** 開發中。命令列已能執行完整處理流程，Unity 匯入工具也能把輸出的 ZIP 變成可操作的角色；完整網頁流程將接續完成。
 
 ## 評審：兩分鐘內完成驗證（不需要 API Key）
 
 **1. 查看完成的輸出。** 每個 ZIP 都是處理流程實際交付給 Unity 的內容：
 
-| 像素騎士：舞蹈（正面、48 幀） | 像素獵犬：行走 | 線稿人物：攻擊 |
+| 像素騎士：舞蹈（正面、48 幀） | 像素獵犬：行走 | 線稿人物：跑步（20 幀）與攻擊 |
 | --- | --- | --- |
-| ![騎士](examples/previews/knight_dance.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物](examples/previews/lineman_attack.gif) |
+| ![騎士](examples/previews/knight_dance.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物跑步](examples/previews/lineman_run.gif) ![線稿人物攻擊](examples/previews/lineman_attack.gif) |
 | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 48 幀中有 40 幀通過全部檢查 | 10 幀中有 4 幀 | 10 幀中有 6 幀 |
-| Meta API 呼叫費用 US$3.07 | US$1.01 | US$0.53 |
+| 48 幀中有 40 幀通過全部檢查 | 10 幀中有 4 幀 | 跑步 20 幀中有 16 幀，攻擊 10 幀中有 6 幀 |
+| Meta API 呼叫費用 US$3.07 | US$1.01 | US$1.21 + US$0.53 |
 
 每個 ZIP 內含 Sprite Sheet、供 Unity 匯入工具使用的 `<name>_meta.json`、每一幀的 PNG、GIF
 預覽，以及記錄每次重繪分數的 `report/scores.csv`（`needs_review` 代表該幀未通過所有檢查）。
 費用是 `logs/cost.csv` 中每個 ZIP 背後所有付費呼叫的總和，包含 SAM 3.1 影片追蹤、角色設定圖，
 以及每次重繪與檢查。10 幀的動作約需 4–6 分鐘（量測結果見 `spikes/REPORT.md`），48 幀的舞蹈約 15 分鐘。
-獵犬和線稿人物的 ZIP 於 10/31 以 10 幀、15 fps 重新製作；費用只計新送出的呼叫（SAM 3.1 追蹤與部分重繪來自快取）。
+獵犬和線稿人物的 ZIP 於 10/31 以 10 幀、15 fps 重新製作；費用只計新送出的呼叫（SAM 3.1 追蹤與部分重繪來自快取）。線稿人物的跑步於 11/1 以 20 幀、20 fps 加入。
 
 **2. 執行測試。** 不需要金鑰或網路；`tests/test_examples.py` 會依輸出合約檢查三個 ZIP。
 
@@ -90,6 +90,25 @@ actsprite_<name>/
 US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPRITE_OFFLINE=1` 後只會從快取回應：
 不需要金鑰，也不會將任何內容傳送至 API。
 
+## Unity
+
+匯入工具是一個 Unity 6 套件，放在 [`unity/ActSpriteImporter`](unity/ActSpriteImporter/README.md)。
+
+1. Window > Package Manager > + > *Install package from git URL…*，輸入
+   `https://github.com/lilwad-0730/actsprite.git?path=unity/ActSpriteImporter`
+   （或選 *Install package from disk…*，指向本機 clone 裡的 `unity/ActSpriteImporter/package.json`）。
+2. 選 **ActSprite > Import ZIP…**，挑上面任一個 ZIP。工具會切格（軸心在腳底）、依各動作的 fps 建立動畫，
+   建立 Animator Controller（參數 `Speed`、`IsGrounded`，其他動作各一個 Trigger），以及含 Rigidbody2D
+   和依角色像素貼合碰撞體的 Prefab。
+3. 選 **ActSprite > Build Demo Scene**，按 Play。場景會先放出套件內附的像素騎士（待機、跑步、跳躍、攻擊），
+   確保一定有會跑的角色；你匯入的角色排在它後面。A/D 移動、空白鍵跳躍、1–9 播放攻擊或舞蹈等其他動作、
+   Tab 切換角色。
+
+已用腳本在全新的 Unity 6000.5.5f1 空專案驗證（先用舊版 Input Manager，再改成只用 Input System）：
+三個範例角色匯入時沒有任何警告；每段動畫的關鍵幀都依 fps 等距排列；內附騎士在 `Speed` > 0.1 時從待機切到跑步，
+並依序播放 `run_00`–`run_07`；每個角色落到地面和兩個平台上，最低的腳底像素都剛好貼齊表面（誤差 0 像素）。
+作者也已在 Play Mode 手動驗收（2026-10-31）。
+
 ## 網頁應用程式
 
 線上預覽：https://huggingface.co/spaces/Andy0730huggin/actsprite
@@ -106,6 +125,8 @@ US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPR
 
 這個儲存庫中的所有內容都在黑客松期間建立，詳情請見 Git 紀錄。
 線稿角色設計（`man in line.jpg`）由作者的女朋友於 2026 年 10 月 29 日為本專案繪製。
+Unity Demo 場景的地牢牆面與地板（`unity/ActSpriteImporter/DemoArt/`）由作者於 2026 年 10 月 30 日以 AI 圖像生成工具製作，
+提示詞見 `DemoArt/GenerationPrompts.md`。
 唯一的外部輸入是「致謝與授權」中列出的測試影片。
 
 ## 致謝與授權
@@ -122,6 +143,8 @@ US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPR
 | [Gradio](https://github.com/gradio-app/gradio) | Apache-2.0 | 網頁應用程式（`app.py`）；由 Space 依 `sdk_version` 安裝 |
 | [spaces](https://pypi.org/project/spaces/) | Apache-2.0 | Hugging Face ZeroGPU 託管掛鉤（應用程式以 CPU 執行） |
 | [huggingface_hub](https://github.com/huggingface/huggingface_hub) | Apache-2.0 | `scripts/deploy_space.py` 將應用程式上傳至 Space |
+| [2D Sprite](https://docs.unity3d.com/Packages/com.unity.2d.sprite@1.0/manual/index.html)（Unity） | Unity Companion License | Unity 匯入工具：透過 Sprite Editor Data Provider API 切格 |
+| [Input System](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.19/manual/index.html)（Unity，選用） | Unity Companion License | 專案使用 Input System 時的鍵盤操作 |
 
 | 影片 | 來源 | 授權 | 用途 |
 | --- | --- | --- | --- |

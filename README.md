@@ -6,18 +6,19 @@
 
 Act out a move on your phone. Get a consistent, game-ready animated character in Unity.
 
-**Status:** work in progress. The command line runs the whole pipeline; the Unity importer and the full web flow come next.
+**Status:** work in progress. The command line runs the whole pipeline and the Unity importer turns its ZIP into a
+playable character; the full web flow comes next.
 
 ## For judges: verify in 2 minutes (no API key)
 
 **1. Look at finished output.** Each ZIP is exactly what the pipeline hands to Unity:
 
-| Pixel knight, dance (front view, 48 frames) | Pixel hound, walk | Line-art man, attack |
+| Pixel knight, dance (front view, 48 frames) | Pixel hound, walk | Line-art man, run (20 frames) and attack |
 | --- | --- | --- |
-| ![knight](examples/previews/knight_dance.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man](examples/previews/lineman_attack.gif) |
+| ![knight](examples/previews/knight_dance.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man running](examples/previews/lineman_run.gif) ![line-art man attacking](examples/previews/lineman_attack.gif) |
 | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
-| 40/48 frames passed every check | 4/10 | 6/10 |
-| $3.07 in Meta API calls | $1.01 | $0.53 |
+| 40/48 frames passed every check | 4/10 | run 16/20, attack 6/10 |
+| $3.07 in Meta API calls | $1.01 | $1.21 + $0.53 |
 
 Inside each ZIP: the sprite sheet, `<name>_meta.json` for the Unity importer, every frame as a PNG, a GIF
 preview, and `report/scores.csv` with the scores of every redraw attempt (`needs_review` marks the frames that did
@@ -25,7 +26,7 @@ not pass every check). The spend is the sum of every paid call behind each ZIP i
 video track, the character sheet and every redraw and check. A 10-frame action takes about 4-6 minutes
 (measurements in `spikes/REPORT.md`); the 48-frame dance took 15 minutes. The hound and line-art ZIPs were
 remade on Oct 31 at 10 frames / 15 fps; their spend counts new calls only (the SAM 3.1 track and some redraws
-came from the cache).
+came from the cache). The line-art run was added on Nov 1 at 20 frames / 20 fps.
 
 **2. Run the tests.** No key and no network needed; `tests/test_examples.py` checks the three ZIPs against the
 output contract.
@@ -99,6 +100,26 @@ The estimated cost is printed before each batch of calls and every call is logge
 (about $0.7 per action for the three examples; identical requests are served from `cache/` for free). Set `ACTSPRITE_OFFLINE=1`
 to answer only from the cache: no key needed, nothing is ever sent to the API.
 
+## Unity
+
+The importer is a Unity 6 package in [`unity/ActSpriteImporter`](unity/ActSpriteImporter/README.md).
+
+1. Window > Package Manager > + > *Install package from git URL…*
+   `https://github.com/lilwad-0730/actsprite.git?path=unity/ActSpriteImporter`
+   (or *Install package from disk…* and pick `unity/ActSpriteImporter/package.json` in a clone).
+2. **ActSprite > Import ZIP…** and pick any ZIP above. It slices the sheet (pivot at the feet), makes one clip
+   per action at its fps, an Animator Controller (`Speed`, `IsGrounded`, one trigger per extra action) and a
+   prefab with a Rigidbody2D and a collider fitted to the character's pixels.
+3. **ActSprite > Build Demo Scene**, then Play. The scene starts with a pixel knight bundled in the package
+   (idle, run, jump, attack), so there is always a character that runs; your imported characters follow.
+   A/D move, Space jumps, 1–9 play extra actions such as attack or dance, Tab switches character.
+
+Checked by a script in a new, empty Unity 6000.5.5f1 project (old Input Manager, then Input System only):
+the three example characters import without warnings, every clip has evenly spaced keys at its fps, the
+bundled knight switches from idle to run when `Speed` > 0.1 and plays `run_00`–`run_07` in order, and each
+character dropped onto the floor and two platforms comes to rest with its lowest foot pixel exactly on the
+surface (0 px gap). The author also checked it by hand in Play Mode (2026-10-31).
+
 ## Web app
 
 Live preview: https://huggingface.co/spaces/Andy0730huggin/actsprite (showcase + SAM 3.1 tracking check).
@@ -114,6 +135,8 @@ Live preview: https://huggingface.co/spaces/Andy0730huggin/actsprite (showcase +
 
 Everything in this repository was created during the hackathon period. See the git history.
 The line-art character design (`man in line.jpg`) was drawn for this project on 2026-10-29 by the girlfriend of the author.
+The dungeon wall and floor in the Unity demo scene (`unity/ActSpriteImporter/DemoArt/`) were made by the author
+on 2026-10-30 with an AI image generator; the prompts are in `DemoArt/GenerationPrompts.md`.
 The only outside input is the test footage listed under Credits.
 
 ## Credits and licenses
@@ -130,6 +153,8 @@ The only outside input is the test footage listed under Credits.
 | [Gradio](https://github.com/gradio-app/gradio) | Apache-2.0 | Web app (`app.py`), installed by the Space from `sdk_version` |
 | [spaces](https://pypi.org/project/spaces/) | Apache-2.0 | Hugging Face ZeroGPU hosting hook (the app runs on CPU) |
 | [huggingface_hub](https://github.com/huggingface/huggingface_hub) | Apache-2.0 | `scripts/deploy_space.py` uploads the app to the Space |
+| [2D Sprite](https://docs.unity3d.com/Packages/com.unity.2d.sprite@1.0/manual/index.html) (Unity) | Unity Companion License | Unity importer: slices the sheet through the Sprite Editor Data Provider API |
+| [Input System](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.19/manual/index.html) (Unity, optional) | Unity Companion License | Keyboard control when the project uses the Input System |
 
 | Footage | Source | License | Use |
 | --- | --- | --- | --- |
