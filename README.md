@@ -122,13 +122,19 @@ surface (0 px gap). The author also checked it by hand in Play Mode (2026-10-31)
 
 ## Web app
 
-Live preview: https://huggingface.co/spaces/Andy0730huggin/actsprite (showcase + SAM 3.1 tracking check).
+Live: https://huggingface.co/spaces/Andy0730huggin/actsprite. Upload a phone clip, pick a character (built-in or
+your own design) and an action, then go through three checked steps: **1. Track** (SAM 3.1 only, about $0.02:
+see the keyframes as pose guides), **2. First frame** (draw and check frame 0), **3. All frames** (preview, every
+frame with its result, and the ZIP for the Unity importer). The settings used are shown and written to
+`report/parameters.json` in the ZIP. The public Space is limited to 5 s of a clip, 8 frames, 2 sprites per visitor
+per day and a $40 total budget; the other settings are locked there and open in the command line. A local run on
+Nov 1 (knight, run clip) took 21 s, 76 s and 141 s for the three steps and $0.57.
 
 ```powershell
 .venv\Scripts\python -m pip install gradio==6.31.0 spaces huggingface_hub
 .venv\Scripts\python app.py                    # local, http://localhost:7860
 .venv\Scripts\hf auth login                    # once, token stays on your machine
-.venv\Scripts\python scripts/deploy_space.py   # upload app.py, actsprite/, showcase/ to the Space
+.venv\Scripts\python scripts/deploy_space.py   # upload app.py, actsprite/, showcase/, characters/ to the Space
 ```
 
 ## Built during the hackathon (Oct 26 – Nov 4, 2026)

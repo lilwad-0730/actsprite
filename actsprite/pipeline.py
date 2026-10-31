@@ -27,7 +27,7 @@ import hashlib
 import json
 import shutil
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -42,7 +42,7 @@ from actsprite.images import save_rgb, save_rgba, tile
 from actsprite.meta_client import MetaClient, estimate_sam_video_cost, print_estimate
 from actsprite.pack import (action_fps, character_meta, export_cells, follow_guide_height, preview_gif,
                             sheet_from_rows, sprite_cells)
-from actsprite.redraw import leg_policy, redraw_action
+from actsprite.redraw import leg_policy, redraw_action, redraw_frame
 from actsprite.restyle import STYLES
 from actsprite.sequence import LOOP_MODES, choose_frames, clip_fps, make_guides, mode_for
 
@@ -97,17 +97,47 @@ def playback_fps(fps: float | str | None, info: dict, sam_fps: float, mode: str)
     return int(fps) if fps.is_integer() else fps  # 12, not 12.0, in the meta JSON
 
 
-def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: str = "person",
-               mode: str | None = None, edges: tuple[str, ...] = config.FULL_BODY_EDGES, anchor: str = "first",
-               hide_anchor_legs: bool = True, frames: int | None = None,
-               fps: float | str | None = None, start: float | None = None, end: float | None = None,
-               head_turn: bool | None = None, sample_fps: float = config.SAM_VIDEO_FPS,
-               feet_planted: bool = False, client: MetaClient | None = None) -> dict:
-    """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result.
-    frames: keyframes to draw (default: idle 8, others 10); fps: playback speed (see playback_fps); start/end: part of the clip in seconds.
-    head_turn: also track the face with SAM 3.1 so the drawn head turns like the actor's (None: on in front view).
-    sample_fps: frames per second of the clip sent to SAM 3.1 for tracking.
-    feet_planted: the feet stay where they are in frame 0 (e.g. a punch), checked like idle's."""
+@dataclass
+class ActionPlan:
+    """Everything decided before the first redraw: the track, the keyframes, their pose guides and the sheet."""
+    video: Path
+    root: Path
+    action: str
+    ch: Character
+    client: MetaClient
+    work: Path
+    note: str
+    actor: str
+    mode: str
+    edges: tuple[str, ...]
+    anchor: str
+    start: float | None
+    end: float | None
+    sam_fps: float
+    play_fps: float
+    info: dict
+    faces: np.ndarray | None
+    poses: list | None
+    heads: list[str] | None
+    guides: list[tuple[np.ndarray, np.ndarray]]
+    sheet_png: bytes
+    palette: np.ndarray
+    hide_legs: bool
+    legs_stay: bool
+    t0: float
+    t_track: float
+    spent_before: float
+    calls_before: dict
+
+
+def plan_action(video: Path, root: Path, action: str, ch: Character, *, actor: str = "person",
+                mode: str | None = None, edges: tuple[str, ...] = config.FULL_BODY_EDGES, anchor: str = "first",
+                hide_anchor_legs: bool = True, frames: int | None = None,
+                fps: float | str | None = None, start: float | None = None, end: float | None = None,
+                head_turn: bool | None = None, sample_fps: float = config.SAM_VIDEO_FPS,
+                feet_planted: bool = False, client: MetaClient | None = None) -> ActionPlan:
+    """Track the actor, choose the keyframes, draw their pose guides and get the character sheet (see run_action).
+    Costs one SAM 3.1 video call (plus the sheet for a built-in character); saves the guides in work/<action>/."""
     if not config.SAMPLE_FPS_MIN <= sample_fps <= config.SAMPLE_FPS_MAX:
         raise PipelineError(f"--sample-fps must be {config.SAMPLE_FPS_MIN:g}-{config.SAMPLE_FPS_MAX:g}, "
                             f"not {sample_fps:g}.")
@@ -139,16 +169,32 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     if ch.view == "front" and not (root / "work" / "sheet.png").exists():
         save_rgb(root / "work" / "sheet.png", make_sheet(client, replace(ch, view="side"))[1])  # cached
     hide_legs, legs_stay = (False, True) if feet_planted else leg_policy(mode, hide_anchor_legs)
-    rows, rgbs, timing = redraw_action(client, ch, guides, sheet_png, palette, work / "redraw", note,
-                                       anchor, hide_legs, legs_stay, heads)
+    return ActionPlan(video, root, action, ch, client, work, note, actor, mode, edges, anchor, start, end, sam_fps,
+                      play_fps, info, faces, poses, heads, guides, sheet_png, palette, hide_legs, legs_stay,
+                      t0, t_track, spent_before, calls_before)
+
+
+def draw_first_frame(plan: ActionPlan) -> tuple[list[dict], np.ndarray]:
+    """Redraw only frame 0 (the web app's check before the batch). The request is the one finish_action sends
+    for frame 0, so finishing afterwards reuses it from the cache. Returns its attempt rows and its RGB."""
+    rows, _, rgb = redraw_frame(plan.client, plan.ch, plan.work / "redraw", plan.note, 0, plan.guides[0],
+                                plan.sheet_png, plan.palette, None, plan.heads[0] if plan.heads else "")
+    return rows, rgb
+
+
+def finish_action(plan: ActionPlan) -> dict:
+    """Redraw and check every keyframe, write the cells, scores and result.json of work/<action>/; returns the result."""
+    ch, work, guides, client = plan.ch, plan.work, plan.guides, plan.client
+    rows, rgbs, timing = redraw_action(client, ch, guides, plan.sheet_png, plan.palette, work / "redraw", plan.note,
+                                       plan.anchor, plan.hide_legs, plan.legs_stay, plan.heads)
 
     pixel_art = STYLES[ch.style].pixelate
     cuts = [cutout(rgb, ch) for rgb in rgbs]
     height_follow = None
     cell_rgbs = rgbs
-    if mode in config.HEIGHT_FOLLOW_MODES:  # idle: keep the actor's up-down bob that Muse Image drops
+    if plan.mode in config.HEIGHT_FOLLOW_MODES:  # idle: keep the actor's up-down bob that Muse Image drops
         cell_rgbs, cuts, height_follow = follow_guide_height(rgbs, cuts, [m for _, m in guides])
-    cells = sprite_cells(cell_rgbs, cuts, palette, config.SPRITE_PIXEL_SIZE if pixel_art else None)
+    cells = sprite_cells(cell_rgbs, cuts, plan.palette, config.SPRITE_PIXEL_SIZE if pixel_art else None)
     for k, cell in enumerate(export_cells(cells, pixel_art)):
         save_rgba(work / "cells" / f"{k:02d}.png", cell)
     for r in rows:
@@ -160,22 +206,34 @@ def run_action(video: Path, root: Path, action: str, ch: Character, *, actor: st
     save_rgb(work / "compare.png", compare_sheet([g for g, _ in guides], rgbs))
 
     chosen = sorted((r for r in rows if r.get("chosen")), key=lambda r: r["frame"])
+    poses = plan.poses
     result = {
-        "name": action, "mode": mode, "frames": len(chosen), "fps": play_fps, "loop": mode in LOOP_MODES,
-        "view": ch.view, "head_turn": faces is not None, "height_follow": height_follow, "heads": heads,
+        "name": plan.action, "mode": plan.mode, "frames": len(chosen), "fps": plan.play_fps,
+        "loop": plan.mode in LOOP_MODES,
+        "view": ch.view, "head_turn": plan.faces is not None, "height_follow": height_follow, "heads": plan.heads,
         "head_yaw": [None if p is None else round(p.yaw, 3) for p in poses] if poses else None,
         "passed": [bool(r["passed"]) for r in chosen],
         "attempts": len(rows), "first_try_pass": sum(bool(r["passed"]) for r in rows if r["attempt"] == 0),
-        "video": str(video), "actor": actor, "edges": list(edges), "sam_fps": round(sam_fps, 2),
-        "start": start, "end": end,
-        "anchor": anchor, "hide_anchor_legs": anchor == "first" and hide_legs, "legs_stay": legs_stay,
-        **info, **timing,
-        "track_seconds": round(t_track, 1), "seconds": round(time.perf_counter() - t0, 1),
-        "spent_usd": round(client.cost_log.total() - spent_before, 4),
-        "api_calls": {k: client.calls[k] - calls_before[k] for k in client.calls},  # new = sent to Meta
+        "video": str(plan.video), "actor": plan.actor, "edges": list(plan.edges), "sam_fps": round(plan.sam_fps, 2),
+        "start": plan.start, "end": plan.end,
+        "anchor": plan.anchor, "hide_anchor_legs": plan.anchor == "first" and plan.hide_legs,
+        "legs_stay": plan.legs_stay,
+        **plan.info, **timing,
+        "track_seconds": round(plan.t_track, 1), "seconds": round(time.perf_counter() - plan.t0, 1),
+        "spent_usd": round(client.cost_log.total() - plan.spent_before, 4),
+        "api_calls": {k: client.calls[k] - plan.calls_before[k] for k in client.calls},  # new = sent to Meta
     }
     (work / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
+
+
+def run_action(video: Path, root: Path, action: str, ch: Character, **kwargs) -> dict:
+    """Track, choose keyframes, redraw and check one action; writes work/<action>/ and returns its result.
+    Options (see plan_action): actor, mode, edges, anchor, hide_anchor_legs, frames (default: idle 8, others 10),
+    fps (playback speed, see playback_fps), start/end (part of the clip in seconds), head_turn (also track the face
+    so the drawn head turns like the actor's; default on in front view), sample_fps (frames per second sent to
+    SAM 3.1), feet_planted (the feet stay as in frame 0, checked like idle's), client."""
+    return finish_action(plan_action(video, root, action, ch, **kwargs))
 
 
 def compare_sheet(guides: list[np.ndarray], redraws: list[np.ndarray], cols: int = 8) -> np.ndarray:
@@ -195,8 +253,9 @@ def _action_sort_key(name: str) -> tuple[int, str]:
     return (order.index(name) if name in order else len(order), name)
 
 
-def build_package(root: Path, ch: Character) -> Path:
-    """(Re)build actsprite_<name>/ and its ZIP from every finished action in root/work; returns the ZIP."""
+def build_package(root: Path, ch: Character, parameters: dict | None = None) -> Path:
+    """(Re)build actsprite_<name>/ and its ZIP from every finished action in root/work; returns the ZIP.
+    parameters: written to report/parameters.json (the web app records the settings it used)."""
     done = sorted((p.parent for p in (root / "work").glob("*/result.json")), key=lambda d: _action_sort_key(d.name))
     if not done:
         raise PipelineError(f"No finished action in {root / 'work'}: run one action first.")
@@ -217,6 +276,8 @@ def build_package(root: Path, ch: Character) -> Path:
         preview_gif(row, pkg / "preview" / f"{res['name']}.gif", res["fps"])
     _write_scores(pkg / "report" / "scores.csv", done)
     (pkg / "report" / "summary.md").write_text(_summary_md(name, ch.style, results), encoding="utf-8")
+    if parameters is not None:
+        (pkg / "report" / "parameters.json").write_text(json.dumps(parameters, indent=2), encoding="utf-8")
     (pkg / "reference").mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / "work" / "sheet.png", pkg / "reference" / "character_sheet.png")
     if any(r.get("view") == "front" for r in results) and (root / "work" / "sheet_front.png").exists():

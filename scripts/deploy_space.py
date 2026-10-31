@@ -5,7 +5,8 @@ Log in once in your own terminal (the token stays on your machine, never in chat
 Then:
   .venv\\Scripts\\python scripts/deploy_space.py
 
-Only what the Space runs is uploaded: app.py, the actsprite package, the showcase, requirements, licence,
+Only what the Space runs is uploaded: app.py, the actsprite package, the showcase, the built-in character
+sheets (characters/ and "man in line.jpg"), requirements, licence,
 and space/README.md as the Space card. Videos, caches, logs and .env never leave this machine.
 """
 
@@ -22,8 +23,8 @@ from huggingface_hub.errors import HfHubHTTPError
 
 ROOT = Path(__file__).resolve().parent.parent
 SPACE_ID = "Andy0730huggin/actsprite"
-FILES = ["app.py", "requirements.txt", "LICENSE"]
-DIRS = ["actsprite", "showcase"]
+FILES = ["app.py", "requirements.txt", "LICENSE", "man in line.jpg"]
+DIRS = ["actsprite", "showcase", "characters"]
 
 
 def main() -> None:

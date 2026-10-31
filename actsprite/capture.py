@@ -316,12 +316,14 @@ def prepare_video(
     max_short_side: int = config.SAM_VIDEO_MAX_SHORT_SIDE,
     target_fps: float = config.SAM_VIDEO_FPS,
     max_seconds: float | None = None,
+    start_seconds: float = 0.0,
 ) -> PreparedVideo:
     """Re-encode a phone clip for SAM: MPEG-4 in an MP4, short side <= max_short_side,
-    every n-th frame so the rate is at most target_fps, only the first max_seconds if given.
+    every n-th frame so the rate is at most target_fps, from start_seconds and for max_seconds if given.
     Streams frames (no full clip in memory)."""
     fps, _, (w, h) = video_info(src)
-    last = None if max_seconds is None else int(round(max_seconds * fps))
+    first = max(0, int(round(start_seconds * fps)))
+    last = None if max_seconds is None else first + int(round(max_seconds * fps))
     stride = max(1, round(fps / target_fps))
     scale = min(1.0, max_short_side / min(w, h))
     size = (int(w * scale) // 2 * 2, int(h * scale) // 2 * 2)
@@ -334,7 +336,7 @@ def prepare_video(
         ok, bgr = cap.read()
         if not ok or (last is not None and i >= last):
             break
-        if i % stride == 0:
+        if i >= first and (i - first) % stride == 0:
             writer.write(cv2.resize(bgr, size, interpolation=cv2.INTER_AREA))
             kept.append(i)
         i += 1

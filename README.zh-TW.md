@@ -111,14 +111,17 @@ US$0.7；相同要求會直接使用 `cache/`，不再收費）。設定 `ACTSPR
 
 ## 網頁應用程式
 
-線上預覽：https://huggingface.co/spaces/Andy0730huggin/actsprite
-（作品展示＋SAM 3.1 追蹤確認）。
+線上版：https://huggingface.co/spaces/Andy0730huggin/actsprite 。上傳手機影片，選角色（內建或上傳自己的設計）和動作，
+再依序走三個檢查步驟：**1. 追蹤**（只用 SAM 3.1，約 US$0.02，先看關鍵幀的姿勢線稿）、**2. 第一幀**（畫出並檢查第 0 幀）、
+**3. 全部幀**（動畫預覽、每一幀的結果，以及給 Unity 匯入工具的 ZIP）。使用的設定會顯示在頁面上，也寫進 ZIP 的
+`report/parameters.json`。公開版限制：每段影片取 5 秒、8 幀、每位訪客每天 2 次、總預算 US$40；其他設定在網頁上鎖定，
+指令列版都可以調整。11/1 在本機實測（騎士、跑步影片）：三步各花 21 秒、76 秒、141 秒，共 US$0.57。
 
 ```powershell
 .venv\Scripts\python -m pip install gradio==6.31.0 spaces huggingface_hub
 .venv\Scripts\python app.py                    # 本機：http://localhost:7860
 .venv\Scripts\hf auth login                    # 只需一次，Token 保留在你的電腦
-.venv\Scripts\python scripts/deploy_space.py   # 上傳 app.py、actsprite/、showcase/ 至 Space
+.venv\Scripts\python scripts/deploy_space.py   # 上傳 app.py、actsprite/、showcase/、characters/ 至 Space
 ```
 
 ## 黑客松期間完成（2026 年 10 月 26 日至 11 月 4 日）

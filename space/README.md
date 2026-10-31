@@ -20,6 +20,10 @@ SAM 3.1, Muse Image and Muse Spark 1.3.
 
 Source code, tests and measured results: https://github.com/lilwad-0730/actsprite
 
-Clips uploaded to this Space are sent to the Meta Model API for processing and are not stored.
+Make a sprite in three checked steps: track your clip (SAM 3.1), draw the first frame, then draw every frame
+and download the ZIP for the Unity importer in the repository.
+
+Clips and character images uploaded to this Space are sent to the Meta Model API for processing and are
+deleted from the Space within an hour.
 The dog walk in the showcase comes from a Pexels clip by Luis Adolfo Burgos
 (https://www.pexels.com/video/close-up-shot-of-dog-walking-on-the-street-4300700/, Pexels License).

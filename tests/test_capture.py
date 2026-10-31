@@ -165,3 +165,17 @@ def test_video_parse_survives_a_dead_worker(monkeypatch):
     monkeypatch.setattr(capture, "ProcessPoolExecutor", DyingPool)
     rescued = parse_sam_output(text, (320, 334), video=True, workers=3)
     assert [(o.frame_index, o.box) for o in rescued] == [(o.frame_index, o.box) for o in serial]
+
+
+def test_prepare_video_from_a_start_time(tmp_path):
+    import cv2
+    import numpy as np
+    from actsprite.capture import prepare_video
+
+    src = tmp_path / "clip.mp4"
+    w = cv2.VideoWriter(str(src), cv2.VideoWriter_fourcc(*"mp4v"), 10, (64, 48))
+    for i in range(30):  # 3 s at 10 fps; frame i is filled with the value 8 * i
+        w.write(np.full((48, 64, 3), 8 * i, np.uint8))
+    w.release()
+    pv = prepare_video(src, tmp_path / "out.mp4", target_fps=10, max_seconds=1.0, start_seconds=1.5)
+    assert pv.source_indices == list(range(15, 25)) and pv.frame_count == 10
