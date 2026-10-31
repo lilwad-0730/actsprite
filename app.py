@@ -50,9 +50,10 @@ SHOWCASE_ITEMS = [
     ("hound_walk", "Pixel hound - walk cycle",
      "Pexels clip by Luis Adolfo Burgos. One 22-frame stride, 10 frames at 15 fps. 4 of 10 frames passed "
      "every check."),
-    ("lineman_attack", "Line-art man - attack",
-     "The author's attack clip, redrawn as a friend's line-art design. 10 frames at 15 fps; 6 of 10 passed."),
-]
+    ("lineman_run", "Line-art man - run cycle",
+     "The author's run clip, redrawn as a friend's line-art design. One stride, 20 frames at 20 fps; "
+     "16 of 20 passed every check.", 2),
+]  # (name, title, note[, rows in the strip image])
 # Spaces sets CPU_CORES; os.cpu_count() can report the whole host inside a container.
 WORKERS = max(1, int(os.environ.get("CPU_CORES") or os.cpu_count() or 1))
 WEB_ROOT = Path(tempfile.gettempdir()) / "actsprite_web"  # one folder per visit, deleted after KEEP_S
@@ -334,14 +335,15 @@ def showcase_html() -> str:
         return base64.b64encode(path.read_bytes()).decode()
 
     cards = []
-    for name, title, note in SHOWCASE_ITEMS:
+    for name, title, note, *rows in SHOWCASE_ITEMS:
         gif, strip = SHOWCASE / f"{name}.gif", SHOWCASE / f"{name}_strip.png"
+        height = 96 * (rows[0] if rows else 1)  # every row of frames shows 96 px tall
         cards.append(
             f'<div style="margin-bottom:24px"><h3 style="margin:0 0 4px">{title}</h3>'
             f'<p style="margin:0 0 8px;opacity:.8">{note}</p>'
             f'<img src="data:image/gif;base64,{b64(gif)}" width="192" height="192" '
             f'style="image-rendering:pixelated;background:#ebebeb;border-radius:6px;margin-right:12px" alt="{title} loop">'
-            f'<img src="data:image/png;base64,{b64(strip)}" style="max-width:100%;height:96px;'
+            f'<img src="data:image/png;base64,{b64(strip)}" style="max-width:100%;height:{height}px;'
             f'image-rendering:pixelated;background:#ebebeb;border-radius:6px" alt="{title} sprite strip"></div>'
         )
     return "".join(cards)
