@@ -179,3 +179,47 @@ def test_prepare_video_from_a_start_time(tmp_path):
     w.release()
     pv = prepare_video(src, tmp_path / "out.mp4", target_fps=10, max_seconds=1.0, start_seconds=1.5)
     assert pv.source_indices == list(range(15, 25)) and pv.frame_count == 10
+
+
+def test_a_corrupt_sam_mask_is_skipped(monkeypatch):
+    from meta_sam_parser import InvalidSegmentationMaskError
+    from actsprite import capture
+
+    class Rec:
+        kind, object_id = "mask", "0"
+        def __init__(self, i):
+            self.mask = type("M", (), {"height": 2, "width": 2, "i": i})()
+            self.bounds = type("B", (), {"left": 0, "top": 0, "right": 2, "bottom": 2})()
+            self.frame = type("F", (), {"frame_index": i})()
+
+    class Parser:
+        def push(self, text): pass
+        def finish(self, outcome): return type("R", (), {"result": type("X", (), {"records": [Rec(0), Rec(1)]})()})()
+
+    def decode(m):
+        if m.i == 1:
+            raise InvalidSegmentationMaskError("Mask payload could not be decoded.")
+        return bytes(4)
+
+    monkeypatch.setattr(capture, "video_segmentation_format", lambda: type("Fm", (), {"create_parser": lambda self: Parser()})())
+    monkeypatch.setattr(capture, "decode_mask_to_raster", decode)
+    out = capture._decode_chunk("text", video=True)
+    assert [d[0] for d in out] == [0]  # frame 1's corrupt mask is dropped, frame 0 kept
+
+
+def test_phone_rotation_is_applied_to_frames_and_prepared_size(tmp_path):
+    from pathlib import Path
+    from actsprite.capture import prepare_video, read_frames, read_frames_at, video_info
+
+    # Synthetic red/green/blue/yellow quadrants stored landscape with a 90-degree display rotation.
+    src = Path(__file__).parent / "fixtures" / "phone_rotation90.mp4"
+    fps, count, size = video_info(src)
+    assert fps == 10 and count == 2 and size == (48, 64)
+    frames = read_frames(src)
+    assert frames[0].shape == (64, 48, 3)
+    assert frames[0][8, 8, 1] > 200  # green rotates from the stored top right to the displayed top left
+    assert np.array_equal(read_frames_at(src, [0])[0], frames[0])
+    pv = prepare_video(src, tmp_path / "prepared.mp4", target_fps=10, max_short_side=48)
+    assert pv.size == size and pv.source_indices == [0, 1]
+    prepared = read_frames(pv.path)
+    assert prepared[0].shape == frames[0].shape and prepared[0][8, 8, 1] > 200

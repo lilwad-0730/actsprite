@@ -132,10 +132,21 @@ FULL_BODY_EDGES = ("top", "bottom", "left", "right")  # edges the subject must n
 # --- Web demo (Hugging Face Space) -----------------------------------------------------
 DEMO_SPEND_CAP_USD = 40.0  # the public Space stops calling Meta models once its cost log reaches this
 DEMO_MAX_CLIP_S = 5.0  # only the first seconds of an upload are used
-DEMO_SAM_FPS = 15  # frames per second sent to SAM from the web (decode runs on 2 shared CPUs)
+DEMO_SAM_FPS = 30  # frames per second sent to SAM from the web, as the command line (a 16-frame stride needs it)
 DEMO_SAM_CHECKS_PER_DAY = 5  # tracking checks (step 1) per visitor per day
 DEMO_RUNS_PER_DAY = 2  # sprite runs (steps 2-3) per visitor per day (11/1, user-approved)
-DEMO_FRAMES = 8  # frames per action on the web (spec: public demo <= 8 frames, <= 2 redraws)
+# Web settings per action, from the runs the author accepted (11/1, user-approved; replaces the spec's 8 frames):
+# idle 8 frames at 8 fps (knight idle); walk/run 16 at the clip's speed (line-art run 20 at 20 fps); jump 12 over
+# takeoff to standing at the clip's speed (knight jump); attack 10 at 15 fps, the command-line default (15 frames
+# with the feet planted passed 2 of 15 on the punch clip through the web, so the user chose this).
+# span: with an end time the whole start-end part is used; without one the most active part is (mode once).
+DEMO_RECIPES = {
+    "idle": {"frames": 8},
+    "walk": {"frames": 16, "fps": "auto"},
+    "run": {"frames": 16, "fps": "auto"},
+    "jump": {"frames": 12, "fps": "auto", "span": True},
+    "attack": {"frames": 10, "fps": 15, "span": True},
+}
 DEMO_QUEUE_SIZE = 8  # visitors waiting at once; one job runs at a time
 
 # --- Action window (one-shot actions such as jump/attack inside a longer clip) --------

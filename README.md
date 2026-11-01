@@ -146,9 +146,31 @@ Live: https://huggingface.co/spaces/Andy0730huggin/actsprite. Upload a phone cli
 your own design) and an action, then go through three checked steps: **1. Track** (SAM 3.1 only, about $0.02:
 see the keyframes as pose guides), **2. First frame** (draw and check frame 0), **3. All frames** (preview, every
 frame with its result, and the ZIP for the Unity importer). The settings used are shown and written to
-`report/parameters.json` in the ZIP. The public Space is limited to 5 s of a clip, 8 frames, 2 sprites per visitor
-per day and a $40 total budget; the other settings are locked there and open in the command line. A local run on
-Nov 1 (knight, run clip) took 21 s, 76 s and 141 s for the three steps and $0.57.
+`report/parameters.json` in the ZIP. Set **Start at** and, optionally, **End at** to select up to 5 s of your clip.
+For jump/attack, an end time uses the whole selected part; leaving it empty picks the most active burst.
+For idle/walk/run, a cycle is found inside the selected part. Walk/run need at least two full strides;
+cycle detection can still fail on short clips or small changes in sampling.
+
+| Action | Frames (up to) | Playback |
+| --- | --- | --- |
+| idle | 8 | 8 fps |
+| walk / run | 16 | Timed from the source clip |
+| jump | 12 | Timed from the source clip |
+| attack | 10 | 15 fps |
+
+Tracking samples up to 30 fps. **Name** sets the ZIP filename and the character name inside it; **Rename the ZIP
+(free)** repacks a finished result without any Meta API calls. Names use letters, digits, `-` and `_`, up to
+32 characters; spaces become underscores and other characters are removed.
+
+Each visitor has 5 tracking steps and 2 sprite runs per day. Calls stop at $40 in the Space's current cost log;
+the log and daily counters can reset when the Space restarts, so this is not a persistent billing limit.
+Other settings remain locked on the web and available in the command line.
+
+Local three-step runs on Nov 1: jump 7/12 frames passed ($0.80), run 9/16 ($1.58), and attack 4/10 ($0.947636).
+These are development checks, not accuracy guarantees; jump/run predate the latest capture fixes. The attack
+run used a correctly oriented clip after the rotation fix: narrow stances still became wide lunges, so inspect
+the preview and amber frames before using the sprites. The earlier 8-frame web run ($0.57; 21/76/141 s for
+the three steps) used the old defaults and is not a timing measurement for these presets.
 
 ```powershell
 .venv\Scripts\python -m pip install gradio==6.31.0 spaces huggingface_hub

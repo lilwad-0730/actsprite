@@ -13,6 +13,7 @@ import numpy as np
 from actsprite import config
 from meta_sam_parser import (
     CompletedOutcome,
+    InvalidSegmentationMaskError,
     decode_mask_to_raster,
     image_segmentation_format,
     video_segmentation_format,
@@ -44,7 +45,10 @@ def _decode_chunk(text: str, video: bool) -> list[_Decoded]:
         if record.kind != "mask":
             continue
         m = record.mask
-        crop = np.frombuffer(decode_mask_to_raster(m), dtype=np.uint8).reshape(m.height, m.width)
+        try:
+            crop = np.frombuffer(decode_mask_to_raster(m), dtype=np.uint8).reshape(m.height, m.width)
+        except InvalidSegmentationMaskError:
+            continue  # a corrupt payload costs that frame its mask, not the whole track
         box = tuple(int(round(v)) for v in (record.bounds.left, record.bounds.top,
                                              record.bounds.right, record.bounds.bottom))
         frame_index = record.frame.frame_index if record.frame is not None else 0
@@ -318,6 +322,7 @@ def prepare_video(
     dst.parent.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(str(dst), cv2.VideoWriter_fourcc(*"mp4v"), fps / stride, size)
     cap = cv2.VideoCapture(str(src))
+    cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
     kept: list[int] = []
     i = 0
     while True:
@@ -340,6 +345,7 @@ def video_info(path: Path) -> tuple[float, int, tuple[int, int]]:
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise FileNotFoundError(f"Cannot open video {path}; check the path and that it is MP4/MOV.")
+    cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)  # phone display rotation must match decoded pixels and dimensions
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
@@ -351,6 +357,7 @@ def read_frames_at(path: Path, indices: list[int]) -> dict[int, np.ndarray]:
     """Only the given frames (RGB), read in one pass: a whole 16 s clip would be ~600 MB in memory."""
     wanted = set(indices)
     cap = cv2.VideoCapture(str(path))
+    cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
     frames: dict[int, np.ndarray] = {}
     i = 0
     while len(frames) < len(wanted):
@@ -371,6 +378,7 @@ def read_frames(path: Path) -> list[np.ndarray]:
     """All frames as RGB arrays, in source order (SAM frame indices refer to these)."""
     cap = cv2.VideoCapture(str(path))
     frames: list[np.ndarray] = []
+    cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
     while True:
         ok, bgr = cap.read()
         if not ok:

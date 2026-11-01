@@ -19,6 +19,7 @@ spikes/out/
 *.mp4
 *.mov
 *.MOV
+!tests/fixtures/phone_rotation90.mp4
 
 # Unity
 unity/**/Library/

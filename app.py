@@ -20,7 +20,9 @@ except ImportError:  # local runs without the package
 import base64
 import datetime as dt
 import hashlib
+import math
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -65,6 +67,7 @@ CHARACTERS = {
     "Line-art man": PRESETS["lineman"],
     "Hound (for dog clips)": replace(PRESETS["hound"], sheet_path=str(config.ROOT / "characters" / "hound.png")),
 }
+NAMES = {"Pixel knight": "knight", "Line-art man": "lineman", "Hound (for dog clips)": "hound", OWN: "mychar"}
 ACTIONS = {
     "idle - stand and breathe (loops)": "idle",
     "walk - one stride (loops)": "walk",
@@ -156,16 +159,25 @@ def _own_character(png: str | None, style: str, body: str, faces_left: bool, roo
     return custom_character("mine", sheet=path, body=body, style=style, faces_left=faces_left)
 
 
+def _clean_name(text: str | None, default: str) -> str:
+    """The name in the ZIP (actsprite_<name>.zip), its files and the Unity character: letters, digits, - and _."""
+    name = re.sub(r"[^A-Za-z0-9_-]", "", (text or "").strip().replace(" ", "_"))[:32]
+    return name or default
+
+
 # ------------------------------------------------------------------ panels
 def _parameters(s: dict, visitor: str) -> dict:
     plan: ActionPlan = s["plan"]
     info, start = plan.info, s["start"]
     est = len(plan.guides) * TRY_EST_USD
     return {
+        "name": s.get("name", plan.ch.name),
         "character": s["character"],
         "style": plan.ch.style,
         "action": plan.action,
         "mode (chosen from the action)": plan.mode,
+        "settings_for_this_action": s["recipe"],
+        "feet_planted": plan.legs_stay,
         "frames": len(plan.guides),
         "playback_fps": plan.play_fps,
         "sam_sample_fps": config.DEMO_SAM_FPS,
@@ -210,10 +222,21 @@ def _frame_grid(cells: list[Path], passed: list[bool]) -> np.ndarray:
 
 
 # ------------------------------------------------------------------ steps
-def step_track(video, char_label, own_png, style, body, faces_left, action_label, actor, start,
+def step_track(video, char_label, own_png, style, body, faces_left, action_label, actor, start, end,
                request: gr.Request):
     if not video:
         raise gr.Error("Upload a phone clip (MP4 or MOV) first.")
+    try:
+        start = float(start or 0)
+        end = None if end in (None, "") else float(end)
+    except (TypeError, ValueError) as e:
+        raise gr.Error("Start at and End at must be finite numbers.") from e
+    if not math.isfinite(start) or (end is not None and not math.isfinite(end)):
+        raise gr.Error("Start at and End at must be finite numbers.")
+    start = max(0.0, start)
+    if end is not None and not start < end <= start + config.DEMO_MAX_CLIP_S:
+        raise gr.Error(f"End at must be after Start at and at most {config.DEMO_MAX_CLIP_S:.0f} s later "
+                       "(or empty).")
     visitor = _visitor(request)
     if not _take_slot("track", visitor, config.DEMO_SAM_CHECKS_PER_DAY):
         raise gr.Error(f"Daily limit reached ({config.DEMO_SAM_CHECKS_PER_DAY} tracking steps per visitor). "
@@ -222,9 +245,9 @@ def step_track(video, char_label, own_png, style, body, faces_left, action_label
     sid = uuid.uuid4().hex
     root = WEB_ROOT / sid
     root.mkdir(parents=True)
-    start = max(0.0, float(start or 0))
     ch = _own_character(own_png, style, body, faces_left, root) if char_label == OWN else CHARACTERS[char_label]
     action = ACTIONS[action_label]
+    recipe = config.DEMO_RECIPES[action]
     actor = (actor or "person").strip()[:40]
     try:
         client = MetaClient(cache_dir=root / "cache", budget_usd=config.DEMO_SPEND_CAP_USD)
@@ -233,10 +256,14 @@ def step_track(video, char_label, own_png, style, body, faces_left, action_label
     spent_at_start = client.cost_log.total()
     try:
         pv = prepare_video(Path(video), root / "clip.mp4", target_fps=config.DEMO_SAM_FPS,
-                           max_seconds=config.DEMO_MAX_CLIP_S, start_seconds=start)
+                           max_seconds=config.DEMO_MAX_CLIP_S if end is None else end - start,
+                           start_seconds=start)
     except (ValueError, FileNotFoundError) as e:
         raise gr.Error(str(e)) from e
-    kwargs = dict(actor=actor, frames=config.DEMO_FRAMES, sample_fps=config.DEMO_SAM_FPS, client=client)
+    whole = bool(recipe.get("span")) and end is not None  # jump/attack with an end time: the whole part
+    frames = min(recipe["frames"], max(2, pv.frame_count - 1)) if whole else recipe["frames"]
+    kwargs = dict(actor=actor, mode="span" if whole else None, frames=frames, fps=recipe.get("fps"),
+                  feet_planted=recipe.get("feet_planted", False), sample_fps=config.DEMO_SAM_FPS, client=client)
     try:
         try:
             plan = plan_action(pv.path, root, action, ch, **kwargs)
@@ -249,6 +276,7 @@ def step_track(video, char_label, own_png, style, body, faces_left, action_label
     except BudgetExceeded as e:
         raise gr.Error("This demo has used its Meta API budget. The showcase still works.") from e
     s = {"plan": plan, "root": root, "character": char_label, "start": start, "first": False, "slot": False,
+         "recipe": recipe, "whole": whole,
          "clip_seconds": pv.frame_count / pv.fps, "spent_at_start": spent_at_start}
     with _sessions_lock:
         _sessions[sid] = s
@@ -257,7 +285,13 @@ def step_track(video, char_label, own_png, style, body, faces_left, action_label
     note = (f"**{n} keyframes** between {start + info['keyframe_seconds'][0]:.2f} s and "
             f"{start + info['keyframe_seconds'][-1]:.2f} s of your clip, played at {plan.play_fps} fps. "
             "These grey silhouettes are all Muse Image will see of you. If the pose is wrong, change the start "
-            "time or the clip and track again; otherwise draw the first frame.")
+            "time or the clip and track again; otherwise draw the first frame. "
+            f"Step 3 costs about ${n * TRY_EST_USD:.2f}.")
+    if recipe.get("span") and not whole:
+        note += (" **Tip:** set *End at* to where the move ends, so the whole move is used (for a jump: "
+                 "from takeoff to standing again); without it the most active part is picked.")
+    if action == "attack":
+        note += " **Known limitation:** narrow punch stances can still be redrawn as wide lunges."
     return sid, guides, note, _parameters(s, visitor), gr.update(interactive=True), gr.update(interactive=False)
 
 
@@ -283,7 +317,15 @@ def step_first(sid, request: gr.Request):
     return rgb, note, _parameters(s, visitor), gr.update(interactive=True)
 
 
-def step_finish(sid, request: gr.Request, progress=gr.Progress()):
+def _pack(s: dict, name: str | None, visitor: str) -> tuple[Path, dict]:
+    """(Re)build the ZIP under the chosen name: no Meta API calls."""
+    plan: ActionPlan = s["plan"]
+    s["name"] = _clean_name(name, plan.ch.name)
+    params = _parameters(s, visitor)
+    return build_package(s["root"], replace(plan.ch, name=s["name"]), parameters=params), params
+
+
+def step_finish(sid, name, request: gr.Request, progress=gr.Progress()):
     s = _session(sid)
     if not s["first"]:
         raise gr.Error("Draw the first frame (step 2) first.")
@@ -296,8 +338,8 @@ def step_finish(sid, request: gr.Request, progress=gr.Progress()):
     except BudgetExceeded as e:
         raise gr.Error("This demo has used its Meta API budget. The showcase still works.") from e
     progress(0.95, desc="Packing the ZIP")
-    params = _parameters(s, _visitor(request))
-    zip_path = build_package(s["root"], plan.ch, parameters=params)
+    zip_path, params = _pack(s, name, _visitor(request))
+    s["finished"] = True
     pkg = zip_path.with_suffix("")
     cells = sorted((plan.work / "cells").glob("*.png"))
     passed = result["passed"]
@@ -307,13 +349,21 @@ def step_finish(sid, request: gr.Request, progress=gr.Progress()):
                f"{config.MAX_REGENERATIONS} redraws; the best attempt is used, so look at them. "
                "Unity: install the importer from the repo (unity/ActSpriteImporter), then ActSprite > Import ZIP.")
     return (_gif_html(pkg / "preview" / f"{plan.action}.gif"), _frame_grid(cells, passed), summary,
-            str(zip_path), params)
+            str(zip_path), params, gr.update(value=s["name"]), gr.update(interactive=True))
+
+
+def rename_zip(sid, name, request: gr.Request):
+    s = _session(sid)
+    if not s.get("finished"):
+        raise gr.Error("Finish step 3 first.")
+    zip_path, params = _pack(s, name, _visitor(request))
+    return str(zip_path), params, gr.update(value=s["name"])
 
 
 def own_design_visible(label: str):
     own = label == OWN
     actor = "dog" if label.startswith("Hound") else "person"
-    return gr.update(visible=own), gr.update(value=actor)
+    return gr.update(visible=own), gr.update(value=actor), gr.update(value=NAMES[label])
 
 
 # ------------------------------------------------------------------ page
@@ -359,7 +409,7 @@ NOTICE = f"""**Before you upload.** Your clip and your character image are sent 
 demo runs on hackathon credits, Meta may use uploads to improve its products. Muse Image only sees grey
 silhouettes of you (the pose guides) and the character design, so your appearance never reaches the sprites.
 Uploads and results are deleted from this Space within an hour.
-**Limits:** {config.DEMO_MAX_CLIP_S:.0f} seconds of the clip from the start time you set, {config.DEMO_FRAMES} frames,
+**Limits:** up to {config.DEMO_MAX_CLIP_S:.0f} seconds of the clip (start to end), 8-16 frames depending on the action,
 {config.DEMO_RUNS_PER_DAY} sprites and {config.DEMO_SAM_CHECKS_PER_DAY} tracking steps per visitor per day.
 **Best results:** side view, the whole body in frame, a plain background, one move."""
 
@@ -381,8 +431,11 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
         with gr.Row():
             with gr.Column(scale=1):
                 video_in = gr.Video(label="Phone clip (MP4 or MOV)", sources=["upload"])
-                start_in = gr.Number(value=0, minimum=0, label="Start at (seconds)",
-                                     info=f"The next {config.DEMO_MAX_CLIP_S:.0f} seconds are used.")
+                with gr.Row():
+                    start_in = gr.Number(value=0, minimum=0, label="Start at (seconds)",
+                                         info=f"Up to {config.DEMO_MAX_CLIP_S:.0f} seconds from here are used.")
+                    end_in = gr.Number(value=None, minimum=0, label="End at (seconds, optional)",
+                                       info="Jump and attack: where the move ends. Empty for idle, walk, run.")
                 action_in = gr.Dropdown(list(ACTIONS), value="run - one stride (loops)", label="Action")
                 char_in = gr.Radio([*CHARACTERS, OWN], value="Pixel knight", label="Character")
                 with gr.Group(visible=False) as own_box:
@@ -395,9 +448,10 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
                 actor_in = gr.Textbox(value="person", label="Who to track in the clip (a short noun)")
                 with gr.Accordion("Advanced settings (coming soon)", open=False):
                     gr.Markdown(LOCKED)
-                    _locked(lambda **k: gr.Slider(config.FRAMES_MIN, config.FRAMES_MAX, value=config.DEMO_FRAMES,
-                                                  step=1, label="Frames", **k), "--frames 2-48")
-                    _locked(lambda **k: gr.Textbox(value="idle 8, other actions 15", label="Playback fps", **k),
+                    _locked(lambda **k: gr.Textbox(value="idle 8, walk and run 16, jump 12, attack 10",
+                                                   label="Frames", **k), "--frames 2-48")
+                    _locked(lambda **k: gr.Textbox(value="idle 8, attack 15, walk/run/jump the clip's speed",
+                                                   label="Playback fps", **k),
                             "--fps 1-30 or auto (the clip's own speed)")
                     _locked(lambda **k: gr.Slider(config.SAMPLE_FPS_MIN, config.SAMPLE_FPS_MAX,
                                                   value=config.DEMO_SAM_FPS, step=1, label="SAM 3.1 sample fps", **k),
@@ -405,11 +459,12 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
                     _locked(lambda **k: gr.Radio(["side", "front"], value="side", label="View", **k), "--view")
                     _locked(lambda **k: gr.Checkbox(False, label="Turn the head like the actor", **k),
                             "--head-turn")
-                    _locked(lambda **k: gr.Checkbox(False, label="Feet stay planted", **k), "--feet-planted")
+                    _locked(lambda **k: gr.Textbox(value="off (the command line can plant them, e.g. for a punch)",
+                                                   label="Feet stay planted", **k), "--feet-planted")
                     _locked(lambda **k: gr.Radio(["first", "previous"], value="first",
                                                  label="Each frame follows", **k), "--anchor")
-                    _locked(lambda **k: gr.Textbox(value=f"{config.DEMO_MAX_CLIP_S:.0f} s from the start time",
-                                                   label="Clip length", **k), "--start / --end (any part, any length)")
+                    _locked(lambda **k: gr.Textbox(value=f"start to end, at most {config.DEMO_MAX_CLIP_S:.0f} s",
+                                                   label="Clip part", **k), "--start / --end (any part, any length)")
                 track_btn = gr.Button("1. Track (SAM 3.1, about $0.02)", variant="primary")
             with gr.Column(scale=2):
                 guides_out = gr.Image(label="Step 1: keyframes as pose guides", type="numpy")
@@ -418,22 +473,27 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
                 with gr.Row():
                     first_out = gr.Image(label="Step 2: frame 0", type="numpy", height=280)
                     first_note = gr.Markdown()
-                finish_btn = gr.Button(f"3. Draw all {config.DEMO_FRAMES} frames and pack the ZIP "
-                                       f"(about ${config.DEMO_FRAMES * TRY_EST_USD:.2f})",
-                                       variant="primary", interactive=False)
+                name_in = gr.Textbox(value="knight", max_length=32, label="Name",
+                                     info="Names the ZIP (actsprite_<name>.zip), the files inside and the "
+                                          "character in Unity. Letters, digits, - and _.")
+                finish_btn = gr.Button("3. Draw all frames and pack the ZIP", variant="primary", interactive=False)
                 with gr.Row():
                     gif_out = gr.HTML(label="Animation")
                     summary_out = gr.Markdown()
                 grid_out = gr.Image(label="Step 3: every frame (green passed, amber check by hand)", type="numpy")
-                zip_out = gr.File(label="ZIP for Unity")
+                with gr.Row():
+                    zip_out = gr.File(label="ZIP for Unity", scale=3)
+                    rename_btn = gr.Button("Rename the ZIP (free)", interactive=False, scale=1)
                 params_out = gr.JSON(label="Parameters used (also in the ZIP: report/parameters.json)")
-        char_in.change(own_design_visible, char_in, [own_box, actor_in])
+        char_in.change(own_design_visible, char_in, [own_box, actor_in, name_in])
         track_btn.click(step_track, [video_in, char_in, own_png, style_in, body_in, faces_left_in, action_in,
-                                     actor_in, start_in],
+                                     actor_in, start_in, end_in],
                         [sid, guides_out, track_note, params_out, first_btn, finish_btn], concurrency_limit=1)
         first_btn.click(step_first, sid, [first_out, first_note, params_out, finish_btn], concurrency_limit=1)
-        finish_btn.click(step_finish, sid, [gif_out, grid_out, summary_out, zip_out, params_out],
+        finish_btn.click(step_finish, [sid, name_in],
+                         [gif_out, grid_out, summary_out, zip_out, params_out, name_in, rename_btn],
                          concurrency_limit=1)
+        rename_btn.click(rename_zip, [sid, name_in], [zip_out, params_out, name_in])
     with gr.Tab("Showcase"):
         gr.HTML(showcase_html())
     with gr.Tab("Space info"):
