@@ -1,0 +1,5 @@
+model,operation,paid_calls,total_usd,mean_usd_per_call
+muse-image-1.0,generate_image,1215,12.15,0.01
+muse-spark-1.3,critic,1259,26.84,0.0213
+sam-3.1,segment_image,1125,2.81,0.0025
+sam-3.1,segment_video,93,1.79,0.0192

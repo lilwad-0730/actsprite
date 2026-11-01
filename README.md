@@ -102,6 +102,18 @@ The estimated cost is printed before each batch of calls and every call is logge
 (about $0.7 per action for the three examples; identical requests are served from `cache/` for free). Set `ACTSPRITE_OFFLINE=1`
 to answer only from the cache: no key needed, nothing is ever sent to the API.
 
+## Evaluation
+
+A small development check on the author's clips (Nov 1), with every number from a recorded run; details,
+caveats and commands in [eval/README.md](eval/README.md).
+
+| Model | Measured result |
+| --- | --- |
+| Muse Image + verification loop | 79% of 68 keyframes pass every check, vs 32% when each frame is drawn once without the frame-0 anchor (E1) |
+| Muse Spark 1.3 critic | rejected 14 of 19 deliberately broken frames (recolour 5/5, missing part 5/5, extra item 4/4, wrong proportions 0/5) and 1 of 19 good ones (E6) |
+| SAM 3.1 | a mask in at least 90% of the frames in 9 of 10 clips (E4) |
+| Cost | about $0.5–1.0 for the first run of an 8–12 frame action (E3) |
+
 ## Unity
 
 The importer is a Unity 6 package in [`unity/ActSpriteImporter`](unity/ActSpriteImporter/README.md).

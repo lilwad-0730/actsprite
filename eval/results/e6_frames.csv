@@ -1,0 +1,39 @@
+character,action,frame,defect_kind,image,defect,pose,identity,critic_rejects,palette_drift,palette_rejects,issues,file
+knight,run,1,recolour,normal,,9.0,10.0,False,0.052,False,,
+knight,run,1,recolour,defect,make the armour gold instead of silver and the blue cloth bright red,9.0,3.0,True,0.517,True,"armor and helmet are gold instead of reference silver | all blue trim, chest edging and skirt changed to red",out\_eval\e6\knight_run_f1_recolour.png
+knight,run,3,missing part,normal,,10.0,10.0,False,0.048,False,,
+knight,run,3,missing part,defect,remove the sword and its scabbard from the hip completely,9.0,6.0,True,0.046,False,Missing brown sheathed hip sword/scabbard and belt hardware present in reference and first approved frame,out\_eval\e6\knight_run_f3_missing_part.png
+knight,run,5,proportions,normal,,7.0,10.0,False,0.056,False,Rear foot is airborne instead of planted on the ground | Rear leg is angled too far back compared to guide,
+knight,run,5,proportions,defect,make the head and helmet about twice as large as now,9.0,10.0,False,0.064,False,,out\_eval\e6\knight_run_f5_proportions.png
+knight,idle,1,extra item,normal,,6.0,10.0,True,0.052,False,Back foot is lifted in the air behind the body while the guide shows it planted on the ground | Leg stance is too wide and extended with front knee pushed far forward compared to the compact knees-bent stance in the guide,
+knight,idle,1,extra item,defect,add a long flowing purple cape from the shoulders,8.0,4.0,True,0.325,True,Unauthorized large purple cape added that is not present in reference sheet or first approved frame,out\_eval\e6\knight_idle_f1_extra_item.png
+knight,idle,5,recolour,normal,,10.0,10.0,False,0.053,False,,
+knight,idle,5,recolour,defect,make the armour gold instead of silver and the blue cloth bright red,9.0,3.0,True,0.474,True,Helmet and body armor are gold instead of silver-gray | Skirt tunic is red instead of blue,out\_eval\e6\knight_idle_f5_recolour.png
+knight,jump,1,missing part,normal,,9.0,10.0,False,0.056,False,,
+knight,jump,1,missing part,defect,remove the sword and its scabbard from the hip completely,6.0,7.0,True,0.052,False,missing brown hip dagger/sheath seen in reference and first approved frame | torso leaned too far forward vs guide | arms extended too far forward vs guide,out\_eval\e6\knight_jump_f1_missing_part.png
+knight,jump,7,proportions,normal,,10.0,10.0,False,0.062,False,,
+knight,jump,7,proportions,defect,make the head and helmet about twice as large as now,10.0,10.0,False,0.079,False,,out\_eval\e6\knight_jump_f7_proportions.png
+knight,jump,9,extra item,normal,,9.0,10.0,False,0.069,False,,
+knight,jump,9,extra item,defect,add a long flowing purple cape from the shoulders,9.0,4.0,True,0.306,True,Large purple cape added that is not present in reference sheet or first approved frame,out\_eval\e6\knight_jump_f9_extra_item.png
+lineman,run,1,recolour,normal,,10.0,8.0,False,0.0,False,Extra joint-segmentation lines on both legs not present in first approved frame,
+lineman,run,1,recolour,defect,fill the whole bodysuit with solid bright red colour,10.0,4.0,True,0.72,True,Solid red fill on torso and limbs not present in reference sheet or first approved frame,out\_eval\e6\lineman_run_f1_recolour.png
+lineman,run,2,missing part,normal,,9.0,9.0,False,0.0,False,,
+lineman,run,2,missing part,defect,remove the seam lines and draw the body as one plain outline with no inner lines,5.0,6.0,True,0.0,False,Missing joint segmentation lines on arms torso and legs present in reference and approved frame | Front knee nearly straight with front foot planted instead of bent and lifted in the air | Rear foot on toe with heel raised instead of flat on ground,out\_eval\e6\lineman_run_f2_missing_part.png
+lineman,run,4,proportions,normal,,8.0,10.0,False,0.0,False,Hands are slightly too low and arms too extended compared to tucked waist-level hands in guide,
+lineman,run,4,proportions,defect,make the legs half as long and the torso longer,9.0,9.0,False,0.0,False,,out\_eval\e6\lineman_run_f4_proportions.png
+lineman,run,5,extra item,normal,,9.0,10.0,False,0.0,False,,
+lineman,run,5,extra item,defect,add a wide-brimmed hat and a backpack,9.0,3.0,True,0.0,False,Unauthorized wide-brim hat not in reference or first approved frame | Unauthorized backpack not in reference or first approved frame,out\_eval\e6\lineman_run_f5_extra_item.png
+lineman,run,7,recolour,normal,,9.0,9.0,False,0.0,False,,
+lineman,run,7,recolour,defect,fill the whole bodysuit with solid bright red colour,9.0,4.0,True,0.653,True,"Solid red fill on torso, arms and legs does not match the line-only reference and first approved frame",out\_eval\e6\lineman_run_f7_recolour.png
+lineman,run,8,missing part,normal,,10.0,10.0,False,0.0,False,,
+lineman,run,8,missing part,defect,remove the seam lines and draw the body as one plain outline with no inner lines,9.0,5.0,True,0.0,False,"Missing joint segmentation lines on arms, torso and legs present in reference and first approved frame | Linework is too faint and thin compared to reference's bold line style",out\_eval\e6\lineman_run_f8_missing_part.png
+lineman,run,9,proportions,normal,,8.0,9.0,False,0.0,False,Lifted lower leg is folded inward with foot tucked against standing knee instead of hanging vertically below lifted knee | Hands are held slightly too high and pressed together in front of face,
+lineman,run,9,proportions,defect,make the legs half as long and the torso longer,9.0,10.0,False,0.0,False,,out\_eval\e6\lineman_run_f9_proportions.png
+lineman,run,10,extra item,normal,,10.0,10.0,False,0.0,False,,
+lineman,run,10,extra item,defect,add a wide-brimmed hat and a backpack,10.0,4.0,True,0.0,False,Wide-brim hat added that is not in reference sheet or first approved frame | Backpack added that is not in reference sheet or first approved frame,out\_eval\e6\lineman_run_f10_extra_item.png
+hound,walk,6,recolour,normal,,10.0,10.0,False,0.029,False,,
+hound,walk,6,recolour,defect,make the fur bright blue instead of sandy gold,9.0,3.0,True,0.653,True,"Main body, head and leg fur is bright blue instead of tan/gold from reference and first approved frame | Far-side shading is dark blue instead of darker tan",out\_eval\e6\hound_walk_f6_recolour.png
+hound,walk,7,missing part,normal,,9.0,10.0,False,0.03,False,,
+hound,walk,7,missing part,defect,remove the silver chest plate and the red collar completely,9.0,5.0,True,0.006,False,Missing red collar with ring | Missing blue and grey chest bib/armor,out\_eval\e6\hound_walk_f7_missing_part.png
+hound,walk,9,proportions,normal,,9.0,10.0,False,0.027,False,head is held slightly higher than the low sniffing head in the guide | rear stance is slightly wider with the back foot further back,
+hound,walk,9,proportions,defect,make the head twice as large and the legs very short,7.0,7.0,False,0.02,False,Head is oversized compared to reference and first approved frame | Red collar ring detail missing and chest bib is partly obscured but still present | Far front leg is planted on ground while guide shows it lifted/bent,out\_eval\e6\hound_walk_f9_proportions.png

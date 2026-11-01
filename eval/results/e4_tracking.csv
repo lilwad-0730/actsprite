@@ -1,0 +1,11 @@
+clip,subject,place,source,sam_frames,sam_fps,frames_with_mask,tracked_share,edges_required,usable_whole_body_frames_in_part_used,usable_share,example_action_from_clip,example_frames_passed
+pet.mp4,dog,outdoor street,Pexels stock clip,165,29.97,165,1.0,top+bottom+left+right,165,1.0,walk,4/10
+punch.MOV,person,outdoor,author,217,29.97,217,1.0,left+right,27,0.124,attack,0/15
+idle (1).MOV,person,outdoor,author,239,29.97,239,1.0,top+bottom+left+right,239,1.0,idle,7/8
+jump (1).MOV,person,outdoor,author,130,29.97,130,1.0,top+bottom+left+right,38,0.292,jump,8/12
+run (1).MOV,person,outdoor,author,100,29.97,91,0.91,left+right,66,0.66,run,7/8
+attack.MOV,person,not recorded,author,476,29.97,420,0.882,left+right,320,0.672,attack,7/8
+dance test.mp4,person,not recorded,"friend, consent given",180,30.0,180,1.0,top+bottom+left+right,180,1.0,dance,5/8
+dance 2 test .mp4,person,not recorded,"friend, consent given",180,30.0,180,1.0,top+bottom+left+right,112,0.622,dance,42/48
+idle (2a).mp4,person,not recorded,author,360,29.96,359,0.997,top+left+right,348,0.967,idle,2/8
+idle (2b).mp4,person,not recorded,author,345,30.0,345,1.0,top+left+right,345,1.0,idle,0/8

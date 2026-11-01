@@ -1,0 +1,205 @@
+case,frame,condition,iou,pose,identity,drift,passed,pipeline_passed
+knight idle,0,"A no anchor, one try",0.481,5.0,7.0,0.056,False,
+knight idle,0,"B anchor, one try",0.465,8.0,10.0,0.05,False,False
+knight idle,0,C anchor + checks,0.635,9.0,10.0,0.049,True,True
+knight idle,1,"A no anchor, one try",0.466,8.0,10.0,0.048,False,
+knight idle,1,"B anchor, one try",0.629,10.0,10.0,0.052,True,True
+knight idle,1,C anchor + checks,0.629,10.0,10.0,0.052,True,True
+knight idle,2,"A no anchor, one try",0.493,9.0,9.0,0.052,False,
+knight idle,2,"B anchor, one try",0.631,10.0,10.0,0.057,True,True
+knight idle,2,C anchor + checks,0.631,10.0,10.0,0.057,True,True
+knight idle,3,"A no anchor, one try",0.478,4.0,10.0,0.046,False,
+knight idle,3,"B anchor, one try",0.619,10.0,10.0,0.057,True,True
+knight idle,3,C anchor + checks,0.619,10.0,10.0,0.057,True,True
+knight idle,4,"A no anchor, one try",0.556,8.0,10.0,0.052,True,
+knight idle,4,"B anchor, one try",0.633,4.0,10.0,0.05,False,False
+knight idle,4,C anchor + checks,0.639,6.0,9.0,0.057,False,False
+knight idle,5,"A no anchor, one try",0.457,6.0,9.0,0.056,False,
+knight idle,5,"B anchor, one try",0.635,9.0,10.0,0.053,True,True
+knight idle,5,C anchor + checks,0.635,9.0,10.0,0.053,True,True
+knight idle,6,"A no anchor, one try",0.531,9.0,10.0,0.05,False,
+knight idle,6,"B anchor, one try",0.631,10.0,10.0,0.054,True,True
+knight idle,6,C anchor + checks,0.631,10.0,10.0,0.054,True,True
+knight idle,7,"A no anchor, one try",0.515,7.0,10.0,0.054,False,
+knight idle,7,"B anchor, one try",0.392,4.0,9.0,0.045,False,False
+knight idle,7,C anchor + checks,0.628,10.0,10.0,0.046,True,True
+knight run,0,"A no anchor, one try",0.659,8.0,10.0,0.055,True,
+knight run,0,"B anchor, one try",0.711,10.0,10.0,0.05,True,True
+knight run,0,C anchor + checks,0.711,10.0,10.0,0.05,True,True
+knight run,1,"A no anchor, one try",0.496,7.0,10.0,0.055,False,
+knight run,1,"B anchor, one try",0.567,10.0,10.0,0.052,True,True
+knight run,1,C anchor + checks,0.567,10.0,10.0,0.052,True,True
+knight run,2,"A no anchor, one try",0.493,10.0,10.0,0.064,False,
+knight run,2,"B anchor, one try",0.523,8.0,10.0,0.054,False,False
+knight run,2,C anchor + checks,0.57,9.0,10.0,0.053,True,True
+knight run,3,"A no anchor, one try",0.673,9.0,10.0,0.045,True,
+knight run,3,"B anchor, one try",0.647,9.0,10.0,0.048,True,True
+knight run,3,C anchor + checks,0.647,9.0,10.0,0.048,True,True
+knight run,4,"A no anchor, one try",0.787,10.0,10.0,0.047,True,
+knight run,4,"B anchor, one try",0.702,10.0,10.0,0.05,True,True
+knight run,4,C anchor + checks,0.702,10.0,10.0,0.05,True,True
+knight run,5,"A no anchor, one try",0.708,10.0,10.0,0.047,True,
+knight run,5,"B anchor, one try",0.598,7.0,10.0,0.056,True,True
+knight run,5,C anchor + checks,0.598,7.0,10.0,0.056,True,True
+knight run,6,"A no anchor, one try",0.525,8.0,10.0,0.052,False,
+knight run,6,"B anchor, one try",0.513,9.0,9.0,0.048,False,False
+knight run,6,C anchor + checks,0.563,10.0,10.0,0.048,True,True
+knight run,7,"A no anchor, one try",0.46,9.0,10.0,0.047,False,
+knight run,7,"B anchor, one try",0.527,9.0,8.0,0.054,False,False
+knight run,7,C anchor + checks,0.516,9.0,10.0,0.055,False,False
+knight jump,0,"A no anchor, one try",0.566,3.0,10.0,0.065,False,
+knight jump,0,"B anchor, one try",0.479,6.0,10.0,0.058,False,False
+knight jump,0,C anchor + checks,0.574,8.0,10.0,0.045,True,True
+knight jump,1,"A no anchor, one try",0.529,3.0,10.0,0.058,False,
+knight jump,1,"B anchor, one try",0.578,4.0,10.0,0.053,False,False
+knight jump,1,C anchor + checks,0.667,9.0,10.0,0.056,True,True
+knight jump,2,"A no anchor, one try",0.361,4.0,9.0,0.053,False,
+knight jump,2,"B anchor, one try",0.324,4.0,9.0,0.054,False,False
+knight jump,2,C anchor + checks,0.655,9.0,9.0,0.053,True,True
+knight jump,3,"A no anchor, one try",0.438,10.0,10.0,0.048,False,
+knight jump,3,"B anchor, one try",0.449,3.0,10.0,0.058,False,False
+knight jump,3,C anchor + checks,0.513,5.0,10.0,0.05,False,False
+knight jump,4,"A no anchor, one try",0.544,7.0,10.0,0.051,False,
+knight jump,4,"B anchor, one try",0.456,4.0,9.0,0.056,False,False
+knight jump,4,C anchor + checks,0.608,6.0,10.0,0.057,False,False
+knight jump,5,"A no anchor, one try",0.6,7.0,10.0,0.046,True,
+knight jump,5,"B anchor, one try",0.542,4.0,10.0,0.057,False,False
+knight jump,5,C anchor + checks,0.661,9.0,10.0,0.049,True,False
+knight jump,6,"A no anchor, one try",0.608,10.0,10.0,0.056,True,
+knight jump,6,"B anchor, one try",0.571,7.0,9.0,0.052,True,False
+knight jump,6,C anchor + checks,0.653,10.0,10.0,0.058,True,False
+knight jump,7,"A no anchor, one try",0.708,9.0,9.0,0.059,True,
+knight jump,7,"B anchor, one try",0.71,10.0,9.0,0.062,True,True
+knight jump,7,C anchor + checks,0.71,10.0,9.0,0.062,True,True
+knight jump,8,"A no anchor, one try",0.658,10.0,10.0,0.065,True,
+knight jump,8,"B anchor, one try",0.672,10.0,10.0,0.066,True,True
+knight jump,8,C anchor + checks,0.672,10.0,10.0,0.066,True,True
+knight jump,9,"A no anchor, one try",0.699,10.0,10.0,0.052,True,
+knight jump,9,"B anchor, one try",0.673,10.0,10.0,0.069,True,True
+knight jump,9,C anchor + checks,0.673,10.0,10.0,0.069,True,True
+knight jump,10,"A no anchor, one try",0.512,9.0,10.0,0.058,False,
+knight jump,10,"B anchor, one try",0.575,7.0,10.0,0.06,True,True
+knight jump,10,C anchor + checks,0.575,7.0,10.0,0.06,True,True
+knight jump,11,"A no anchor, one try",0.752,9.0,8.0,0.063,True,
+knight jump,11,"B anchor, one try",0.75,6.0,10.0,0.056,False,False
+knight jump,11,C anchor + checks,0.758,10.0,10.0,0.066,True,True
+lineman run,0,"A no anchor, one try",0.925,9.0,6.0,0.0,False,
+lineman run,0,"B anchor, one try",0.925,9.0,6.0,0.0,False,False
+lineman run,0,C anchor + checks,0.916,9.0,10.0,0.0,True,True
+lineman run,1,"A no anchor, one try",0.914,9.0,8.0,0.0,True,
+lineman run,1,"B anchor, one try",0.898,10.0,5.0,0.0,False,False
+lineman run,1,C anchor + checks,0.859,10.0,10.0,0.0,True,True
+lineman run,2,"A no anchor, one try",0.488,6.0,10.0,0.0,False,
+lineman run,2,"B anchor, one try",0.764,9.0,9.0,0.0,True,True
+lineman run,2,C anchor + checks,0.764,9.0,9.0,0.0,True,True
+lineman run,3,"A no anchor, one try",0.479,9.0,10.0,0.0,False,
+lineman run,3,"B anchor, one try",0.35,4.0,9.0,0.0,False,False
+lineman run,3,C anchor + checks,0.639,6.0,9.0,0.0,False,False
+lineman run,4,"A no anchor, one try",0.923,8.0,6.0,0.0,False,
+lineman run,4,"B anchor, one try",0.933,9.0,3.0,0.0,False,False
+lineman run,4,C anchor + checks,0.893,9.0,10.0,0.0,True,True
+lineman run,5,"A no anchor, one try",0.429,7.0,10.0,0.0,False,
+lineman run,5,"B anchor, one try",0.475,6.0,9.0,0.0,False,False
+lineman run,5,C anchor + checks,0.875,9.0,9.0,0.0,True,True
+lineman run,6,"A no anchor, one try",0.393,5.0,9.0,0.0,False,
+lineman run,6,"B anchor, one try",0.62,6.0,9.0,0.0,False,False
+lineman run,6,C anchor + checks,0.478,9.0,10.0,0.0,False,False
+lineman run,7,"A no anchor, one try",0.934,9.0,6.0,0.0,False,
+lineman run,7,"B anchor, one try",0.769,8.0,9.0,0.0,True,True
+lineman run,7,C anchor + checks,0.769,8.0,9.0,0.0,True,True
+lineman run,8,"A no anchor, one try",0.798,9.0,10.0,0.0,True,
+lineman run,8,"B anchor, one try",0.727,9.0,10.0,0.0,True,True
+lineman run,8,C anchor + checks,0.727,9.0,10.0,0.0,True,True
+lineman run,9,"A no anchor, one try",0.919,9.0,9.0,0.0,True,
+lineman run,9,"B anchor, one try",0.802,7.0,9.0,0.0,True,True
+lineman run,9,C anchor + checks,0.802,7.0,9.0,0.0,True,True
+lineman run,10,"A no anchor, one try",0.929,9.0,7.0,0.0,True,
+lineman run,10,"B anchor, one try",0.689,10.0,10.0,0.0,True,True
+lineman run,10,C anchor + checks,0.689,10.0,10.0,0.0,True,True
+lineman run,11,"A no anchor, one try",0.818,8.0,7.0,0.0,True,
+lineman run,11,"B anchor, one try",0.637,9.0,6.0,0.0,False,False
+lineman run,11,C anchor + checks,0.643,7.0,10.0,0.0,True,True
+lineman run,12,"A no anchor, one try",0.699,9.0,6.0,0.0,False,
+lineman run,12,"B anchor, one try",0.522,4.0,9.0,0.0,False,False
+lineman run,12,C anchor + checks,0.802,10.0,10.0,0.0,True,True
+lineman run,13,"A no anchor, one try",0.538,6.0,6.0,0.0,False,
+lineman run,13,"B anchor, one try",0.367,5.0,9.0,0.0,False,False
+lineman run,13,C anchor + checks,0.859,8.0,6.0,0.0,False,False
+lineman run,14,"A no anchor, one try",0.331,3.0,9.0,0.0,False,
+lineman run,14,"B anchor, one try",0.395,4.0,9.0,0.0,False,False
+lineman run,14,C anchor + checks,0.676,9.0,4.0,0.0,False,False
+lineman run,15,"A no anchor, one try",0.407,7.0,9.0,0.0,False,
+lineman run,15,"B anchor, one try",0.357,2.0,9.0,0.0,False,False
+lineman run,15,C anchor + checks,0.663,7.0,9.0,0.0,True,True
+lineman run,16,"A no anchor, one try",0.43,8.0,8.0,0.0,False,
+lineman run,16,"B anchor, one try",0.49,6.0,9.0,0.0,False,False
+lineman run,16,C anchor + checks,0.608,7.0,9.0,0.0,True,True
+lineman run,17,"A no anchor, one try",0.836,9.0,6.0,0.0,False,
+lineman run,17,"B anchor, one try",0.665,6.0,7.0,0.0,False,False
+lineman run,17,C anchor + checks,0.586,9.0,9.0,0.0,True,True
+lineman run,18,"A no anchor, one try",0.927,9.0,3.0,0.0,False,
+lineman run,18,"B anchor, one try",0.721,9.0,6.0,0.0,False,False
+lineman run,18,C anchor + checks,0.746,10.0,10.0,0.0,True,True
+lineman run,19,"A no anchor, one try",0.933,9.0,7.0,0.0,True,
+lineman run,19,"B anchor, one try",0.751,9.0,10.0,0.0,True,True
+lineman run,19,C anchor + checks,0.751,9.0,10.0,0.0,True,True
+lineman attack,0,"A no anchor, one try",0.549,4.0,9.0,0.0,False,
+lineman attack,0,"B anchor, one try",0.549,4.0,9.0,0.0,False,False
+lineman attack,0,C anchor + checks,0.579,9.0,9.0,0.0,True,True
+lineman attack,1,"A no anchor, one try",0.456,8.0,9.0,0.0,False,
+lineman attack,1,"B anchor, one try",0.486,3.0,9.0,0.0,False,False
+lineman attack,1,C anchor + checks,0.712,4.0,9.0,0.0,False,False
+lineman attack,2,"A no anchor, one try",0.51,5.0,9.0,0.0,False,
+lineman attack,2,"B anchor, one try",0.556,7.0,9.0,0.0,True,True
+lineman attack,2,C anchor + checks,0.556,7.0,9.0,0.0,True,True
+lineman attack,3,"A no anchor, one try",0.435,6.0,10.0,0.0,False,
+lineman attack,3,"B anchor, one try",0.592,6.0,7.0,0.0,False,False
+lineman attack,3,C anchor + checks,0.569,10.0,10.0,0.0,True,True
+lineman attack,4,"A no anchor, one try",0.644,7.0,6.0,0.0,False,
+lineman attack,4,"B anchor, one try",0.552,4.0,6.0,0.0,False,False
+lineman attack,4,C anchor + checks,0.65,7.0,9.0,0.0,True,True
+lineman attack,5,"A no anchor, one try",0.455,6.0,10.0,0.0,False,
+lineman attack,5,"B anchor, one try",0.447,5.0,9.0,0.0,False,False
+lineman attack,5,C anchor + checks,0.618,9.0,9.0,0.0,True,True
+lineman attack,6,"A no anchor, one try",0.431,5.0,8.0,0.0,False,
+lineman attack,6,"B anchor, one try",0.495,5.0,9.0,0.0,False,False
+lineman attack,6,C anchor + checks,0.473,6.0,10.0,0.0,False,False
+lineman attack,7,"A no anchor, one try",0.459,3.0,9.0,0.0,False,
+lineman attack,7,"B anchor, one try",0.538,7.0,9.0,0.0,False,False
+lineman attack,7,C anchor + checks,0.538,7.0,9.0,0.0,False,False
+lineman attack,8,"A no anchor, one try",0.445,4.0,7.0,0.0,False,
+lineman attack,8,"B anchor, one try",0.496,3.0,7.0,0.0,False,False
+lineman attack,8,C anchor + checks,0.727,9.0,10.0,0.0,True,True
+lineman attack,9,"A no anchor, one try",0.437,4.0,9.0,0.0,False,
+lineman attack,9,"B anchor, one try",0.47,2.0,9.0,0.0,False,False
+lineman attack,9,C anchor + checks,0.556,3.0,9.0,0.0,False,False
+hound walk,0,"A no anchor, one try",0.425,8.0,10.0,0.032,False,
+hound walk,0,"B anchor, one try",0.667,9.0,9.0,0.026,True,True
+hound walk,0,C anchor + checks,0.667,9.0,9.0,0.026,True,True
+hound walk,1,"A no anchor, one try",0.793,9.0,10.0,0.032,True,
+hound walk,1,"B anchor, one try",0.625,9.0,10.0,0.025,True,False
+hound walk,1,C anchor + checks,0.496,9.0,10.0,0.03,False,False
+hound walk,2,"A no anchor, one try",0.643,9.0,9.0,0.028,True,
+hound walk,2,"B anchor, one try",0.418,7.0,9.0,0.028,False,False
+hound walk,2,C anchor + checks,0.758,10.0,10.0,0.033,True,False
+hound walk,3,"A no anchor, one try",0.577,8.0,10.0,0.028,True,
+hound walk,3,"B anchor, one try",0.664,9.0,9.0,0.024,True,False
+hound walk,3,C anchor + checks,0.664,9.0,9.0,0.024,True,False
+hound walk,4,"A no anchor, one try",0.409,8.0,10.0,0.03,False,
+hound walk,4,"B anchor, one try",0.681,5.0,10.0,0.025,False,False
+hound walk,4,C anchor + checks,0.645,9.0,10.0,0.032,True,False
+hound walk,5,"A no anchor, one try",0.795,9.0,10.0,0.026,True,
+hound walk,5,"B anchor, one try",0.649,9.0,10.0,0.026,True,False
+hound walk,5,C anchor + checks,0.684,9.0,10.0,0.028,True,False
+hound walk,6,"A no anchor, one try",0.709,9.0,9.0,0.027,True,
+hound walk,6,"B anchor, one try",0.645,10.0,9.0,0.026,True,False
+hound walk,6,C anchor + checks,0.711,9.0,9.0,0.029,True,True
+hound walk,7,"A no anchor, one try",0.428,8.0,9.0,0.034,False,
+hound walk,7,"B anchor, one try",0.682,9.0,10.0,0.026,True,False
+hound walk,7,C anchor + checks,0.624,9.0,10.0,0.03,True,True
+hound walk,8,"A no anchor, one try",0.471,8.0,10.0,0.029,False,
+hound walk,8,"B anchor, one try",0.645,9.0,10.0,0.026,True,False
+hound walk,8,C anchor + checks,0.874,9.0,6.0,0.031,False,False
+hound walk,9,"A no anchor, one try",0.609,6.0,9.0,0.03,False,
+hound walk,9,"B anchor, one try",0.643,8.0,9.0,0.026,True,False
+hound walk,9,C anchor + checks,0.655,9.0,10.0,0.027,True,True
