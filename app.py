@@ -165,6 +165,16 @@ def _clean_name(text: str | None, default: str) -> str:
     return name or default
 
 
+def output_style_notice(style: str) -> str:
+    if STYLES[style].pixelate:
+        return ("**Final output for this run: pixel art.** Uploaded designs are pixelated too; "
+                "fine lines, facial features and clothing details will be reduced. The first-frame preview "
+                "is shown before pixelation. For smooth artwork, choose **My own design → Output style → "
+                "handdrawn** before Track; use **lineart** for a line drawing.")
+    return (f"**Final output for this run: {style}, without pixelation.** "
+            "The generated artwork is still resized to fit the exported sprite frames.")
+
+
 # ------------------------------------------------------------------ panels
 def _parameters(s: dict, visitor: str) -> dict:
     plan: ActionPlan = s["plan"]
@@ -287,6 +297,7 @@ def step_track(video, char_label, own_png, style, body, faces_left, action_label
             "These grey silhouettes are all Muse Image will see of you. If the pose is wrong, change the start "
             "time or the clip and track again; otherwise draw the first frame. "
             f"Step 3 costs about ${n * TRY_EST_USD:.2f}.")
+    note += "\n\n" + output_style_notice(plan.ch.style)
     if recipe.get("span") and not whole:
         note += (" **Tip:** set *End at* to where the move ends, so the whole move is used (for a jump: "
                  "from takeoff to standing again); without it the most active part is picked.")
@@ -314,6 +325,7 @@ def step_first(sid, request: gr.Request):
     note = (f"Frame 0 {verdict} (silhouette match {best['iou']:.2f}, pose {best['pose']:.0f}/10, "
             f"looks like the character {best['identity']:.0f}/10, {len(rows)} attempt(s)). Every other frame is "
             "drawn to match this one. If it looks wrong, try another clip part or character; otherwise draw all.")
+    note += "\n\n" + output_style_notice(s["plan"].ch.style)
     return rgb, note, _parameters(s, visitor), gr.update(interactive=True)
 
 
@@ -442,8 +454,13 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
                     own_png = gr.Image(type="filepath", label="Your design: side view, whole body, facing right, "
                                                               "plain white background", sources=["upload"])
                     with gr.Row():
-                        style_in = gr.Dropdown(sorted(STYLES), value="pixel", label="Style")
+                        style_in = gr.Dropdown(sorted(STYLES), value="pixel", label="Output style",
+                                               info="Applies to your uploaded design too. Default: pixel art. "
+                                                    "Choose handdrawn or lineart before Track to avoid pixelation.")
                         body_in = gr.Dropdown(sorted(BODIES), value="biped", label="Body")
+                    gr.Markdown("**Your design's final look:** `pixel` converts the result to pixel art and "
+                                "reduces fine details. `handdrawn`, `lineart` and `ink` do not pixelate. "
+                                "Choose before **1. Track**; changing this later requires tracking again.")
                     faces_left_in = gr.Checkbox(False, label="My design faces left (it will be mirrored)")
                 actor_in = gr.Textbox(value="person", label="Who to track in the clip (a short noun)")
                 with gr.Accordion("Advanced settings (coming soon)", open=False):
@@ -471,7 +488,8 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
                 track_note = gr.Markdown()
                 first_btn = gr.Button(f"2. Draw the first frame (about ${TRY_EST_USD:.2f})", interactive=False)
                 with gr.Row():
-                    first_out = gr.Image(label="Step 2: frame 0", type="numpy", height=280)
+                    first_out = gr.Image(label="Step 2: frame 0 (before final export processing)",
+                                         type="numpy", height=280)
                     first_note = gr.Markdown()
                 name_in = gr.Textbox(value="knight", max_length=32, label="Name",
                                      info="Names the ZIP (actsprite_<name>.zip), the files inside and the "

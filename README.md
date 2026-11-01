@@ -162,6 +162,12 @@ Tracking samples up to 30 fps. **Name** sets the ZIP filename and the character 
 (free)** repacks a finished result without any Meta API calls. Names use letters, digits, `-` and `_`, up to
 32 characters; spaces become underscores and other characters are removed.
 
+For **My own design**, **Output style** defaults to `pixel`: uploaded designs are also pixelated during
+export, reducing fine details. The first-frame preview is shown before this processing. Choose `handdrawn`
+for smooth artwork or `lineart` for a line drawing **before Track**; changes after tracking require tracking
+again. The tracked run's output style is shown before either drawing step. Pixel knight and Hound always use
+pixel art; Line-art man does not.
+
 Each visitor has 5 tracking steps and 2 sprite runs per day. Calls stop at $40 in the Space's current cost log;
 the log and daily counters can reset when the Space restarts, so this is not a persistent billing limit.
 Other settings remain locked on the web and available in the command line.

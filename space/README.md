@@ -38,6 +38,11 @@ Tracking samples up to 30 fps. **Name** names the ZIP and its character; **Renam
 that name after generation without model calls. Names accept letters, digits, hyphens and underscores
 (32 characters maximum).
 
+For **My own design**, **Output style** defaults to `pixel`, so uploaded designs also become pixel art
+at export and lose fine details. The first-frame preview is shown before pixelation. Choose `handdrawn`
+for smooth artwork or `lineart` for a line drawing **before Track**; track again after changing the style.
+The style used for the tracked run is disclosed before drawing. Pixel knight and Hound always use pixel art.
+
 Limits: 5 tracking steps and 2 sprite runs per visitor per day, and $40 in the current cost log.
 Counters and logs can reset when the Space restarts. This is not a persistent billing limit.
 Narrow punch stances can still turn into wide lunges: a local attack check passed only 4/10 frames.

@@ -70,6 +70,25 @@ def test_invalid_times_do_not_use_tracking_quota_or_call_models(web, start, end)
     assert not web and app._used("track", "local") == 0
 
 
+@pytest.mark.parametrize("style", ["pixel", "handdrawn", "lineart", "ink"])
+def test_uploaded_design_style_is_disclosed_before_drawing(web, tmp_path, monkeypatch, style):
+    design = tmp_path / "design.png"
+    Image.new("RGB", (256, 256), "white").save(design)
+    r = app.step_track("clip.mp4", app.OWN, str(design), style, "biped", False,
+                       "run - one stride (loops)", "person", 0, None, None)
+    assert r[3]["style"] == style
+    expected = "Final output for this run: pixel art" if style == "pixel" else f"{style}, without pixelation"
+    assert expected in r[2]
+    if style == "pixel":
+        assert "Uploaded designs are pixelated too" in r[2] and "before pixelation" in r[2]
+    # Repeat the style captured by Track before the batch drawing step.
+    monkeypatch.setattr(app, "draw_first_frame", lambda plan: ([{
+        "chosen": True, "passed": True, "iou": 1.0, "pose": 10, "identity": 10,
+    }], np.zeros((2, 2, 3), np.uint8)))
+    first = app.step_first(r[0], None)
+    assert expected in first[1]
+
+
 def test_rename_rebuilds_zip_names_and_metadata_without_model_calls(monkeypatch, tmp_path):
     from actsprite.characters import Character
 
