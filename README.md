@@ -6,6 +6,11 @@
 
 Act out a move on your phone. Get a consistent, game-ready animated character in Unity.
 
+> **Before you generate: the default `pixel` style pixelates the final character, including your own uploaded designs.**
+> Fine lines, facial features, textures and gradients can be simplified or lost. The first-frame preview is
+> shown before this processing, so it can look sharper than the final sprites.
+> Read [why pixelation is used, which styles it affects, and how to avoid it](#pixelation-and-artwork-fidelity).
+
 **Status:** work in progress. The command line runs the whole pipeline and the Unity importer turns its ZIP into a
 playable character; the full web flow comes next.
 
@@ -38,6 +43,59 @@ python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 .venv\Scripts\python -m pytest
 ```
+
+## Pixelation and artwork fidelity
+
+**Pixelation is a deliberate export step for the `pixel` style.** Uploading your own character does not
+automatically preserve its original rendering: **My own design → Output style** defaults to `pixel` too.
+An image that is already pixel art is still redrawn and resampled onto ActSprite's grid; its original pixel
+placement is not preserved exactly.
+
+### What happens to a pixel-style character
+
+1. Muse Image redraws each pose using the character reference and pose guide. The `pixel` prompt requests
+   a clean, flat illustration; the model's image is not the final exported sprite.
+2. The program removes the background, aligns the frames, reduces each frame to a **64 × 64** pixel grid,
+   and maps its colours to a **shared palette of up to 24 colours** derived from the character reference.
+3. Each pixel is enlarged into a sharp 2 × 2 block, producing **128 × 128** transparent PNG frames and the
+   sprite sheet. This enlargement does not recover detail removed at 64 × 64.
+
+The web app's first-frame preview shows the model's image before this export processing. Check the final
+animation, frame grid and downloaded PNGs to judge the appearance you will use in Unity.
+
+### Why this choice was made
+
+- **A consistent pixel scale across frames.** Early experiments found that asking the model for pixel art
+  could produce high-resolution illustration instead. Applying the grid in code gives every exported frame
+  the same pixel scale instead of relying on the model to reproduce it on every draw.
+- **Less colour variation.** Mapping similar generated colours to the same reference palette helps reduce
+  small frame-to-frame colour changes. It cannot fix incorrect poses, missing details or character drift.
+- **A predictable small-sprite output.** The fixed grid and cell size support a consistent look when the
+  sprites are displayed at small sizes in a game. This trades fine detail for a compact pixel-art appearance;
+  it is not a promise that the source artwork will be reproduced faithfully.
+
+Fine outlines, fingers, eyes, clothing patterns and smooth shading may merge, change colour or disappear.
+Even without pixelation, AI redraws may change proportions, textures or linework.
+
+### Which choices are pixelated?
+
+| Character / selected style | Export pixelation | PNG frame size |
+| --- | --- | --- |
+| Pixel knight / Hound (`pixel`) | Yes: 64 × 64 grid and shared palette | 128 × 128 |
+| My own design with `pixel` (default) | Yes, including uploaded illustrations and pixel art | 128 × 128 |
+| Line-art man, or My own design with `handdrawn`, `lineart` or `ink` | No additional pixel-grid or palette conversion; still resized for export | 256 × 256 |
+
+To avoid export pixelation, choose **My own design → Output style → handdrawn** (or `lineart` / `ink`)
+**before 1. Track**. On the command line, use your own `--sheet` with `--style handdrawn` or another non-pixel
+style. Changing the web selection after tracking requires tracking again to apply it.
+
+**No pixelation does not mean exact original-style preservation.** For example, `handdrawn` still asks for
+clean ink outlines and flat cel shading, while `lineart` asks for an unfilled pencil-like drawing. The reference
+guides the result, but neither setting guarantees the original brushwork, gradients, proportions or every
+detail. Check the first frame before generating the rest, then inspect the final export.
+
+Design background: [early experiment notes](spikes/REPORT.md). Current behaviour is defined in
+[style settings](actsprite/restyle.py) and [export processing](actsprite/pack.py).
 
 ## How it works
 
@@ -162,11 +220,10 @@ Tracking samples up to 30 fps. **Name** sets the ZIP filename and the character 
 (free)** repacks a finished result without any Meta API calls. Names use letters, digits, `-` and `_`, up to
 32 characters; spaces become underscores and other characters are removed.
 
-For **My own design**, **Output style** defaults to `pixel`: uploaded designs are also pixelated during
-export, reducing fine details. The first-frame preview is shown before this processing. Choose `handdrawn`
-for smooth artwork or `lineart` for a line drawing **before Track**; changes after tracking require tracking
-again. The tracked run's output style is shown before either drawing step. Pixel knight and Hound always use
-pixel art; Line-art man does not.
+**Output style defaults to `pixel`, including My own design.** Review the
+[pixelation and artwork-fidelity explanation](#pixelation-and-artwork-fidelity) before generating.
+The tracked run's output style is shown before either drawing step; choose a non-pixel style before Track
+if you do not want the export to be pixelated.
 
 Each visitor has 5 tracking steps and 2 sprite runs per day. Calls stop at $40 in the Space's current cost log;
 the log and daily counters can reset when the Space restarts, so this is not a persistent billing limit.
