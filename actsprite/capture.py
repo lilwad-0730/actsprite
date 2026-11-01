@@ -122,30 +122,18 @@ def motion_curve(aligned: list[np.ndarray]) -> np.ndarray:
 
 
 def select_keyframes(aligned: list[np.ndarray], count: int, *, loop: bool) -> list[int]:
-    """Pick `count` frames spaced evenly by accumulated motion, so pauses do not eat frames.
+    """Pick frames at even time intervals for fixed-FPS playback, preserving pauses and rhythm.
 
-    loop=True treats the clip as one cycle [0, n) and leaves out the end (it equals the start).
+    One-shots include the first and last frame. Loops sample [0, n), leaving room for the
+    closing interval. Rounding to actual source frames adds at most half a frame of timing error.
     """
     n = len(aligned)
     if n == 0:
         raise ValueError("No frames to choose from.")
     if count >= n:
         return list(range(n))
-    cum = np.concatenate([[0.0], np.cumsum(motion_curve(aligned))])
-    total = cum[-1]
-    if total <= 0:
-        targets = np.linspace(0, n - 1, count, endpoint=not loop)
-        cum = np.arange(n, dtype=np.float64)
-    else:
-        targets = np.array([total * k / count for k in range(count)]) if loop else np.linspace(0, total, count)
-
-    picks: list[int] = []
-    for i, t in enumerate(targets):
-        lo = picks[-1] + 1 if picks else 0
-        hi = n - (count - i)  # leave room for the remaining picks
-        candidates = np.arange(lo, hi + 1)
-        picks.append(int(candidates[np.argmin(np.abs(cum[candidates] - t))]))
-    return picks
+    targets = np.linspace(0, n if loop else n - 1, count, endpoint=not loop)
+    return np.rint(targets).astype(int).tolist()
 
 
 def action_window(

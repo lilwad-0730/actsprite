@@ -55,7 +55,7 @@ def choose_frames(masks: np.ndarray, fps: float, mode: str, edges: tuple[str, ..
     aligned, _, _ = align_sequence(list(masks[lo:hi]), rel=rel[lo:hi])
     if mode == "span":
         s, e = 0, hi - lo
-        picks = sorted({int(round(x)) for x in np.linspace(0, e - 1, frames)})  # even time steps
+        picks = select_keyframes(aligned[s:e], frames, loop=False)
         cycle = None
     elif mode == "once":
         s, e = action_window(aligned, fps)
@@ -71,6 +71,7 @@ def choose_frames(masks: np.ndarray, fps: float, mode: str, edges: tuple[str, ..
         picks = select_keyframes(aligned[s:e], frames, loop=True)
     keys = [lo + s + p for p in picks]
     info = {"full_body": [lo, hi], "window": [lo + s, lo + e], "cycle_frames": cycle, "keyframes": keys,
+            "keyframe_sampling": "uniform_time",
             "keyframe_seconds": [round(k / fps, 3) for k in keys],
             "keyframe_size_fix": [round(float(rel[k]), 3) for k in keys]}
     return info, rel

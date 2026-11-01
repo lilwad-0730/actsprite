@@ -46,21 +46,49 @@ def test_find_cycle_none_for_still_clip():
     assert find_cycle(aligned) is None
 
 
-def test_select_keyframes_skips_pauses():
-    # 10 frames of real motion, then 10 frames frozen: keyframes should sit in the moving part.
+def test_select_keyframes_preserves_time_spent_paused():
+    # Half the clip is a hold: fixed-FPS output must also spend half its frames holding.
     masks = [walker(t) for t in range(PERIOD)] + [walker(PERIOD - 1)] * 10
     aligned, _, _ = align_sequence(masks, size=128, margin=8)
     assert motion_curve(aligned)[-1] == 0.0
     picks = select_keyframes(aligned, 6, loop=False)
     assert len(picks) == 6 and picks == sorted(set(picks))
-    assert sum(p >= PERIOD for p in picks) <= 1
+    assert picks[0] == 0 and picks[-1] == len(aligned) - 1
+    assert sum(p >= PERIOD for p in picks) == 3
 
 
 def test_select_keyframes_loop_excludes_end():
     aligned, _, _ = align_sequence([walker(t) for t in range(PERIOD)], size=128, margin=8)
     picks = select_keyframes(aligned, 5, loop=True)
     assert picks[0] == 0 and len(picks) == 5 and picks == sorted(set(picks))
+    assert picks == [0, 2, 4, 6, 8]  # the closing interval also takes two source frames
     assert select_keyframes(aligned, 20, loop=True) == list(range(PERIOD))
+
+
+def test_keyframe_times_stay_within_half_a_source_frame():
+    aligned, _, _ = align_sequence([walker(t, travel=0) for t in range(25)], size=128, margin=8)
+    for loop in (False, True):
+        for count in range(2, 25):
+            picks = select_keyframes(aligned, count, loop=loop)
+            interval = 25 / count if loop else 24 / (count - 1)
+            assert np.max(np.abs(np.array(picks) - np.arange(count) * interval)) <= .5 + 1e-9
+            assert len(set(picks)) == count and all(0 <= p < 25 for p in picks)
+
+
+def test_action_and_gait_selection_use_uniform_time_inside_their_windows(monkeypatch):
+    from actsprite import sequence
+
+    masks = np.stack([walker(t, travel=0) for t in range(40)])
+    monkeypatch.setattr(sequence, "action_window", lambda aligned, fps: (5, 25))
+    once, _ = sequence.choose_frames(masks, 30., "once", (), frames=6)
+    assert once["window"] == [5, 25]
+    assert once["keyframes"] == [5, 9, 13, 16, 20, 24]
+    assert once["keyframe_sampling"] == "uniform_time"
+
+    monkeypatch.setattr(sequence, "best_cycle", lambda aligned, fps, gait: (5, 25))
+    gait, _ = sequence.choose_frames(masks, 30., "gait", (), frames=8)
+    assert gait["window"] == [5, 30] and gait["cycle_frames"] == 25
+    assert gait["keyframes"] == [5, 8, 11, 14, 17, 21, 24, 27]
 
 
 def test_action_window_finds_the_burst():

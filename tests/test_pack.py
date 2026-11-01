@@ -4,6 +4,22 @@ import pytest
 from actsprite.pack import map_to_palette, pixelate, upscale_nearest
 
 
+@pytest.mark.parametrize("fps", [7.9, 12., 30.])
+def test_preview_gif_preserves_cumulative_playback_time(tmp_path, fps):
+    from PIL import Image, ImageSequence
+    from actsprite.pack import preview_gif
+
+    cells = [np.full((16, 16, 4), (20 * i, 40, 60, 255), np.uint8) for i in range(8)]
+    path = tmp_path / "preview.gif"
+    preview_gif(cells, path, fps, size=16)
+    with Image.open(path) as gif:
+        durations = [frame.info["duration"] for frame in ImageSequence.Iterator(gif)]
+    assert len(durations) == len(cells)
+    # GIF stores 10ms ticks: each boundary should be within half a tick, without accumulating drift.
+    expected = np.arange(1, len(cells) + 1) * 1000 / fps
+    assert np.max(np.abs(np.cumsum(durations) - expected)) <= 5. + 1e-9
+
+
 def cell():
     """256x256 RGBA: red block on a transparent white background."""
     img = np.zeros((256, 256, 4), np.uint8)

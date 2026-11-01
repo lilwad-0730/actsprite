@@ -4,6 +4,9 @@ A small development check on the author's own clips (Nov 1, 2026), not a formal 
 below comes from a run recorded in `eval/results/`; nothing is estimated or filled in. Re-run with the commands
 under each section (E1 and E6 call the Meta Model API and need a key; E3 and E4 only read local records).
 
+E1 uses saved keyframes from before the uniform-time sampling update. Those measurements are historical;
+image quality with the new sampling has not been re-evaluated. Local timing checks are in `out/_eval/timing/`.
+
 | Model | What it does here | Measured result | Source |
 | --- | --- | --- | --- |
 | SAM 3.1 | Tracks the actor in the clip; segments every redraw for the silhouette check | 9 of 10 clips had a mask in at least 90% of the frames (E4) | `results/e4_tracking.csv` |

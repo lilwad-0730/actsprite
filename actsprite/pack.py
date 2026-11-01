@@ -149,4 +149,7 @@ def preview_gif(cells: list[np.ndarray], path: Path, fps: float, size: int = con
         rgba = Image.fromarray(cell, "RGBA")
         frames.append(Image.alpha_composite(Image.new("RGBA", rgba.size, (*background, 255)), rgba).convert("RGB"))
     path.parent.mkdir(parents=True, exist_ok=True)
-    frames[0].save(path, save_all=True, append_images=frames[1:], duration=round(1000 / fps), loop=0)
+    # GIF stores 10ms ticks. Round cumulative times so the truncation does not speed up the animation.
+    boundaries = [round(i * 100 / fps) * 10 for i in range(len(frames) + 1)]
+    durations = [b - a for a, b in zip(boundaries, boundaries[1:])]
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=durations, loop=0)

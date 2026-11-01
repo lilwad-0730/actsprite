@@ -65,10 +65,10 @@ copy .env.example .env   # then paste your Meta Model API key into .env
 .venv\Scripts\python -m actsprite dance.mp4 --action dance --mode span --view front --frames 48 --edges top,bottom,left
 ```
 
-Each run tracks the actor with SAM 3.1, picks 8 keyframes (one burst for jump/attack, one loop for idle,
+Each run tracks the actor with SAM 3.1, picks evenly timed keyframes (one burst for jump/attack, one loop for idle,
 one two-step stride for walk/run), draws pose guides, redraws every frame as the character with Muse Image
 and checks it (SAM 3.1 silhouette, Muse Spark 1.3 critic, palette, leg motion), redrawing failed frames up to
-twice. Frames 1-7 are drawn at the same time, anchored to the approved frame 0. The result is added as a row
+twice. Frames after frame 0 are drawn at the same time, anchored to the approved frame 0. The result is added as a row
 to `out/<name>/actsprite_<name>.zip`:
 
 ```
@@ -82,6 +82,12 @@ actsprite_<name>/
   reference/character_sheet.png
   reference/character_sheet_front.png   only when an action was drawn with --view front
 ```
+
+Keyframes preserve the selected clip's relative timing, including pauses. Loops leave out the repeated
+end pose; one-shot actions include both endpoints. Source-frame rounding is at most half a frame.
+`--fps auto` follows the clip's timing; a numeric `--fps` deliberately changes its playback speed.
+GIF previews distribute their 10 ms timing increments across frames to avoid accumulating playback drift.
+The evaluation below uses previously saved runs; image quality has not been remeasured with this sampling change.
 
 Options for moves filmed facing the camera, such as a dance:
 
