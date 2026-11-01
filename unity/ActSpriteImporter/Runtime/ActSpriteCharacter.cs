@@ -33,7 +33,8 @@ namespace ActSprite
         private ContactFilter2D _groundFilter;
         private float _move;
         private bool _jumpQueued;
-        private bool _hasSpeed, _hasGrounded;
+        private bool _hasSpeed, _hasGrounded, _hasJumpState;
+        private static readonly int JumpState = Animator.StringToHash("jump");
 
         private void Awake()
         {
@@ -49,6 +50,7 @@ namespace ActSprite
                     if (p.name == SpeedParam) _hasSpeed = true;
                     if (p.name == GroundedParam) _hasGrounded = true;
                 }
+                _hasJumpState = _animator.runtimeAnimatorController != null && _animator.HasState(0, JumpState);
             }
         }
 
@@ -87,7 +89,13 @@ namespace ActSprite
             IsGrounded = _body.IsTouching(_groundFilter);
             Vector2 v = _body.linearVelocity;
             v.x = _move * moveSpeed;
-            if (_jumpQueued && IsGrounded) v.y = jumpSpeed;
+            if (_jumpQueued && IsGrounded)
+            {
+                v.y = jumpSpeed;
+                // A jump started during the landing frames of the last one must play its clip again from the
+                // start; otherwise the old clip ends in the air and holds its last (standing) frame.
+                if (_hasJumpState) _animator.Play(JumpState, 0, 0f);
+            }
             _jumpQueued = false;
             _body.linearVelocity = v;
         }
