@@ -4,14 +4,25 @@
 
 以下更新優先於後面的 11/1 歷史快照。
 
+- **下載成品的 Unity 驗收：已驗證。** 使用者於 2026-11-02 確認「實際操作與視覺效果已驗證完畢」。
+  本次成品為從 Space 下載的 `actsprite_knight.zip`：run 16 格、20 fps、0.8 秒循環；已確認流暢度、腳底貼地與左右移動。
+  生成評分仍是 12/16 格通過，人工驗收不會改寫原本的品質分數。
+- 驗收時修正兩項問題：Unity 匯入器移除多餘的結尾關鍵格，避免最後一格多停一次；Unity smoke test 用 `finally`
+  還原物理模擬模式，避免測試後遺留 Script 模式，導致試玩角色浮空且無法移動。獨立驗收專案已恢復 FixedUpdate。
+  Unity 回歸為 `SMOKE RESULT PASS`；下載成品的實際 Play Mode 自動檢查確認落地誤差約 -0.001 px、D/A 分別移動
+  +2.4/-2.4 units、放開按鍵停止且保持貼地。證據在 `out/_eval/acceptance/downloaded/` 的
+  `unity_import_result.txt`、`unity_play_result.txt`、`unity_regression.log`；這些本機產出不提交。
 - 使用者已明確授權將本機變更 commit、push 並部署 Space；本次發布包含動作格數設定、Start/End、Name／免費改名、
   損壞 SAM 遮罩處理及手機旋轉資訊修正。`.claude/`、`.env`、真人影片及 `out/` 產出不提交。
 - 網頁設定：idle 8 格／8 fps、walk/run 16 格／auto、jump 12 格／auto、attack 10 格／15 fps；SAM 最多取樣 30 fps。
   jump/attack 有 End 時用 span，沒填則找最劇烈片段。Start/End 無效時不扣追蹤次數。
-- 最新本機測試：127 項通過，包含時間範圍、各動作設定、ZIP 改名與手機旋轉的回歸測試；`pip check` 通過。
+- 最新本機測試：134 項通過，包含 131 項專案測試及 3 項未提交的 goblin 畫風實驗測試。
+  本次使用 `--basetemp out/_eval/acceptance/<全新資料夾>` 避開預設暫存目錄的權限問題；紀錄在
+  `out/_eval/acceptance/pytest_release_result.txt`。本次憑證文字掃描通過；`pip check` 為前次發布時通過。
 - 攻擊 10 格已實測：正確直式畫面僅 4/10 通過，US$0.947636；之前橫躺畫面的無效測試 US$0.750469 不列入品質比較。
   仍會把窄站姿畫成大跨步，網頁與說明均揭露此限制。不要把舊的 15 格測試或 E1 歷史數據當成本次發布的通過率。
-- 本機 `logs/cost.csv` 最近核對累計 US$45.282342；Space 使用另一份暫存花費紀錄，兩者不能當成同一份累計。
+- 本機 `logs/cost.csv` 最近核對累計 US$45.507254；本次 Unity 修正與驗收沒有呼叫付費模型。
+  Space 使用另一份暫存花費紀錄，兩者不能當成同一份累計。
 - 已建立獨立 Unity 驗收專案 `out/_eval/acceptance/UnityProject`；本次發布的匯入與動畫自動檢查為 `SMOKE RESULT PASS`，
   紀錄在 `out/_eval/acceptance/unity_release_smoke.log`。這不是使用者原本的遊戲專案，也不能替代人工畫面驗收。
 - 驗收影片 `out/_eval/acceptance/01_upload_run_h264.mp4` 已轉 H.264／yuv420p，99 格、3.303 秒，Gradio 相容性與完整解碼通過。
@@ -20,7 +31,7 @@
   循環判定仍對取樣起點敏感；該成功紀錄不能當成新版 30 fps 的驗證。
 - 使用者希望盡量減少人工介入：一般開發、技術測試、檔案整理由 Codex 接手，提供直接連結；帳號操作、付款及
   新的重大規格／公開發布授權才集中請使用者處理。不要反覆要求已授權的 commit／部署確認。
-- 尚待完成：新版線上到下載 ZIP、Unity 播放的完整驗收、最終 Demo 影片與提交；E2／E5 仍未執行。
+- 本次已完成線上下載成品到 Unity 播放的跑步案例驗收。尚待完成：最終 Demo 影片與提交；E2／E5 仍未執行。
 
 ---
 

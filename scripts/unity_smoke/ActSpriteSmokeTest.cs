@@ -21,6 +21,7 @@ public static class ActSpriteSmokeTest
     public static void Run()
     {
         int failures = 0;
+        SimulationMode2D simulationMode = Physics2D.simulationMode;
         try
         {
             string[] zips =
@@ -35,6 +36,8 @@ public static class ActSpriteSmokeTest
                 failures += CheckPrefab(prefabPath);
             }
 
+            string demoMeta = ActSpriteImporter.CharactersRoot + "/demo_knight/demo_knight_meta.json";
+            if (File.Exists(demoMeta)) ActSpriteImporter.Build(demoMeta);
             string scene = ActSpriteDemoSceneBuilder.Build();
             EditorSceneManager.OpenScene(scene);
             failures += CheckRun();
@@ -43,6 +46,11 @@ public static class ActSpriteSmokeTest
             Screenshot(Path.GetFullPath("demo_shot.png"));
         }
         catch (Exception e) { W("EXCEPTION " + e); failures++; }
+        finally
+        {
+            Physics2D.simulationMode = simulationMode;
+            W($"physics simulation restored: {simulationMode}");
+        }
         W(failures == 0 ? "RESULT PASS" : $"RESULT FAIL ({failures})");
         File.WriteAllText("smoke_result.txt", Log.ToString());
         EditorApplication.Exit(failures == 0 ? 0 : 1);
@@ -78,6 +86,17 @@ public static class ActSpriteSmokeTest
             {
                 float dt = keys[i].time - keys[i - 1].time;
                 if (Mathf.Abs(dt - 1f / clip.frameRate) > 1e-4f) { W($"  BAD spacing in {clip.name} at key {i}: {dt}"); bad++; }
+            }
+            float expectedLength = keys.Length / clip.frameRate;
+            if (Mathf.Abs(clip.length - expectedLength) > 1e-4f)
+            {
+                W($"  BAD duration in {clip.name}: {clip.length} instead of {expectedLength}");
+                bad++;
+            }
+            if (keys.Select(k => k.value).Distinct().Count() != keys.Length)
+            {
+                W($"  BAD duplicate sprite key in {clip.name}");
+                bad++;
             }
             if (keys.Length > 2 && !names.StartsWith(keys[0].value.name)) bad++;
         }

@@ -5,12 +5,14 @@ without opening the Editor window. It is not part of the package.
 
 What it checks:
 - every imported prefab: sprite count, pixels per unit, point filter, pivot at the feet, collider, Animator
-  states and transitions (with exit times), clip lengths and key spacing;
+  states and transitions (with exit times), one key per sprite, clip duration of frames / fps and key spacing;
 - the first demo character is `demo_knight`; idle switches to run at `Speed` 3 and plays `run_00`-`run_07`;
 - double jump: a jump started during the last jump's landing frames restarts the jump clip;
 - every demo character dropped on the floor and two platforms rests with its lowest foot pixel on the surface
   (within 1.5 px);
 - a screenshot of the scene (`demo_shot.png`).
+
+The check restores the project's physics simulation mode when it finishes, including when a check throws.
 
 Setup, once:
 1. Create an empty Unity 6000.5.5f1 project (2D).

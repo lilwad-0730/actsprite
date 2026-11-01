@@ -278,11 +278,10 @@ namespace ActSprite.EditorTools
             if (isNew) clip = new AnimationClip();
             clip.frameRate = fps;
 
-            // One key per frame, plus a closing key so the last frame is shown for a full 1/fps.
-            var keys = new ObjectReferenceKeyframe[frames.Length + 1];
+            // Unity holds the last sprite for one sample; a duplicate end key adds an extra frame.
+            var keys = new ObjectReferenceKeyframe[frames.Length];
             for (int i = 0; i < frames.Length; i++)
                 keys[i] = new ObjectReferenceKeyframe { time = i / fps, value = frames[i] };
-            keys[frames.Length] = new ObjectReferenceKeyframe { time = frames.Length / fps, value = frames[frames.Length - 1] };
             var binding = EditorCurveBinding.PPtrCurve("", typeof(SpriteRenderer), "m_Sprite");
             AnimationUtility.SetObjectReferenceCurve(clip, binding, keys);
 
