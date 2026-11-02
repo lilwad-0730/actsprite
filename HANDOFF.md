@@ -16,8 +16,12 @@
   從 Start at 起最多取 5 秒。README 中英文與 Space 說明已補上 Demo 入口和拍攝、表演、角色圖片 tips。
   Tips 是素材準備建議，沒有量測成提升通過率的數據。
 - Demo 配樂 `insomnia.wav` 為使用者提供；真人錄影、配音、配樂與本機剪輯產出均不納入 Git。
-- **交件尚未完成。** 最近核對 GitHub 儲存庫仍為 private；公開前檢查、使用者公開決定、匿名存取與下載驗證、
-  正式提交表單及成功收據仍待處理。E2／E5 未執行，保持如實揭露。
+- **GitHub 公開與匿名存取：已驗證。** 使用者已將儲存庫設為 public；另以不帶 Cookie 或 Authorization 的請求檢查
+  14 個網址，涵蓋儲存庫首頁、中英文 README、Unity 套件資訊、3 個範例 ZIP、5 張 GIF、Space 設定及 YouTube oEmbed。
+  3 個 ZIP 與本機檔案雜湊一致且完整性檢查通過，5 張 GIF 均可讀取為動畫；證據在
+  `out/_eval/public_release_20261102/anonymous_checks.json`。未重新驗證 YouTube 全片播放或呼叫付費模型。
+- **交件尚未完成。** 目前未登入的瀏覽器開啟正式提交網址時，只顯示活動介紹與 Sign In；
+  登入後的實際表單欄位、附加要求、正式送出及成功收據仍待處理。E2／E5 未執行，保持如實揭露。
 
 - **下載成品的 Unity 驗收：已驗證。** 使用者於 2026-11-02 確認「實際操作與視覺效果已驗證完畢」。
   本次成品為從 Space 下載的 `actsprite_knight.zip`：run 16 格、20 fps、0.8 秒循環；已確認流暢度、腳底貼地與左右移動。
