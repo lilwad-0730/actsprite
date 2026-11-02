@@ -446,8 +446,9 @@ with gr.Blocks(title="ActSprite", delete_cache=(KEEP_S, KEEP_S)) as demo:
                 with gr.Row():
                     start_in = gr.Number(value=0, minimum=0, label="Start at (seconds)",
                                          info=f"Up to {config.DEMO_MAX_CLIP_S:.0f} seconds from here are used.")
-                    end_in = gr.Number(value=None, minimum=0, label="End at (seconds, optional)",
-                                       info="Jump and attack: where the move ends. Empty for idle, walk, run.")
+                    # Number replaces empty values with 0 in the frontend.
+                    end_in = gr.Textbox(value="", label="End at (seconds, optional)",
+                                        info="Jump and attack: where the move ends. Empty for idle, walk, run.")
                 action_in = gr.Dropdown(list(ACTIONS), value="run - one stride (loops)", label="Action")
                 char_in = gr.Radio([*CHARACTERS, OWN], value="Pixel knight", label="Character")
                 with gr.Group(visible=False) as own_box:

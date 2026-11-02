@@ -45,6 +45,7 @@ def web(monkeypatch, tmp_path):
 @pytest.mark.parametrize("action,end,count,mode,fps", [
     ("idle", None, 8, "loop", None),
     ("run", None, 16, "gait", "auto"),
+    ("run", "", 16, "gait", "auto"),
     ("walk", 3, 16, "gait", "auto"),
     ("jump", None, 12, "once", "auto"),
     ("jump", 3, 12, "span", "auto"),
@@ -55,7 +56,7 @@ def test_web_time_range_and_action_settings(web, action, end, count, mode, fps):
     r = app.step_track("clip.mp4", "Pixel knight", None, "pixel", "biped", False,
                        label, "person", 1, end, None)
     assert web["clip"]["start_seconds"] == 1
-    assert web["clip"]["max_seconds"] == (5 if end is None else 2)
+    assert web["clip"]["max_seconds"] == (5 if end in (None, "") else 2)
     assert web["plan"]["sample_fps"] == 30
     assert web["plan"]["fps"] == fps and not web["plan"]["feet_planted"]
     assert r[3]["frames"] == count and r[3]["mode (chosen from the action)"] == mode
