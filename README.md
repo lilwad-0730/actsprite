@@ -11,8 +11,21 @@ Act out a move on your phone. Get a consistent, game-ready animated character in
 > shown before this processing, so it can look sharper than the final sprites.
 > Read [why pixelation is used, which styles it affects, and how to avoid it](#pixelation-and-artwork-fidelity).
 
-**Status:** work in progress. The command line runs the whole pipeline and the Unity importer turns its ZIP into a
-playable character; the full web flow comes next.
+**Status:** hackathon prototype. The web workflow from tracking a phone clip to downloading a ZIP and playing
+the character in Unity has been tested with a knight/run example, including manual checks of playback,
+grounding and A/D movement.
+
+## Demo
+
+[Watch the demo on YouTube (2:42)](https://youtu.be/4VDyiQ0EOP4) ·
+[Try the live web app](https://andy0730huggin-actsprite.hf.space)
+
+The video shows character selection and custom-design upload, tracking, first-frame review, checked redraws,
+ZIP download and Unity import. Its recorded knight/run example has **16 frames at 20 fps** (a 0.8-second loop);
+**13/16 frames passed the automatic checks**. This is one recorded result, not a general accuracy guarantee.
+The final animation still needs artistic review.
+
+Before recording or uploading, see [tips for better results](#tips-for-better-results).
 
 ## For judges: verify in 2 minutes (no API key)
 
@@ -102,8 +115,8 @@ Design background: [early experiment notes](spikes/REPORT.md). Current behaviour
 | Step | Meta model | Job |
 | --- | --- | --- |
 | Capture | SAM 3.1 (`sam-3.1`) | Track the actor in the clip, pixel masks per frame |
-| Redraw | Muse Image (`muse-image-1.0`) | Redraw each pose as your character, anchored to the approved first frame so frames 1-7 are drawn at once |
-| Verify | Muse Spark 1.3 (`muse-spark-1.3`) + SAM 3.1 | Art-director critic scores identity; SAM re-checks the pose silhouette |
+| Redraw | Muse Image (`muse-image-1.0`) | Redraw each pose as your character; later frames are drawn concurrently using the approved first frame as an anchor |
+| Verify | Muse Spark 1.3 (`muse-spark-1.3`) + SAM 3.1 | Critic scores pose and character identity; SAM re-checks the silhouette |
 
 ## Quick start (dev)
 
@@ -170,6 +183,8 @@ to answer only from the cache: no key needed, nothing is ever sent to the API.
 
 A small development check on the author's clips (Nov 1), with every number from a recorded run; details,
 caveats and commands in [eval/README.md](eval/README.md).
+E1 uses 68 saved keyframes from an earlier sampler; its checked-redraw result keeps the best of up to three
+attempts. These historical results are separate from the 13/16 running example in the demo.
 
 | Model | Measured result |
 | --- | --- |
@@ -177,6 +192,8 @@ caveats and commands in [eval/README.md](eval/README.md).
 | Muse Spark 1.3 critic | rejected 14 of 19 deliberately broken frames (recolour 5/5, missing part 5/5, extra item 4/4, wrong proportions 0/5) and 1 of 19 good ones (E6) |
 | SAM 3.1 | a mask in at least 90% of the frames in 9 of 10 clips (E4) |
 | Cost | about $0.5–1.0 for the first run of an 8–12 frame action (E3) |
+
+E2 (time against manual work in Unity) and E5 (masks against hand-drawn outlines) have not been run.
 
 ## Unity
 
@@ -205,6 +222,7 @@ your own design) and an action, then go through three checked steps: **1. Track*
 see the keyframes as pose guides), **2. First frame** (draw and check frame 0), **3. All frames** (preview, every
 frame with its result, and the ZIP for the Unity importer). The settings used are shown and written to
 `report/parameters.json` in the ZIP. Set **Start at** and, optionally, **End at** to select up to 5 s of your clip.
+**End at is blank by default.** Leaving it blank uses up to 5 s from Start at, or the remaining clip if shorter.
 For jump/attack, an end time uses the whole selected part; leaving it empty picks the most active burst.
 For idle/walk/run, a cycle is found inside the selected part. Walk/run need at least two full strides;
 cycle detection can still fail on short clips or small changes in sampling.
@@ -241,6 +259,52 @@ the three steps) used the old defaults and is not a timing measurement for these
 .venv\Scripts\hf auth login                    # once, token stays on your machine
 .venv\Scripts\python scripts/deploy_space.py   # upload app.py, actsprite/, showcase/, characters/ to the Space
 ```
+
+## Tips for better results
+
+### Film a clear silhouette
+
+- **Wear clothes that follow your body shape.** Baggy trousers, long coats and loose sleeves can merge the
+  arms, legs and torso into one shape. Keep accessories and long hair from hiding the moving limbs.
+- **Choose clothing that contrasts with the background.** Avoid similar colours and brightness, such as
+  dark trousers against a dark wall. Shoes should stand out from the floor too. Use even lighting and a
+  simple background without other people or moving objects.
+- **Keep the whole body in frame throughout the move.** Leave room above the head, below the feet and in the
+  direction of travel, including the highest point of a jump and its landing. Keep the camera fixed; avoid
+  panning, zooming and shake.
+- **Match the intended view.** For the default side-facing characters, film from the side and maintain the
+  same facing direction. Record a sharp, well-lit take at the intended speed, without cuts or speed changes.
+
+### Perform a readable, complete move
+
+- Keep hand gestures clear of the torso and avoid one limb completely hiding another. Fully overlapping
+  limbs are ambiguous in a silhouette; keep the intended stance and movement readable from the camera.
+- For **walk/run**, record at least **two full strides** within the selected part, at a steady pace. Avoid
+  turning around or stopping halfway through the cycle.
+- For **jump/attack**, include the starting stance, the full movement and the return or landing. Set Start at
+  and End at around that complete move (up to 5 s on the web). Deliberate pauses affect the resulting timing.
+- Inspect the grey pose guides **before drawing**. If feet disappear, limbs merge or the wrong moment is
+  selected, adjust the time range, background or camera position and track again.
+
+### Prepare a character that reads at sprite size
+
+- Upload one clear, full-body character against a plain white background, facing right for the default
+  side view. Use a PNG or JPG at least **256 px on each side**; transparent PNGs are placed on white.
+  If the design faces left, use **My design faces left**. Choose a body type that matches the actor.
+- Use a strong outline, distinct body parts and large colour blocks. Tiny patterns, lettering and delicate
+  accessories are hard to retain. Large capes or props that hide the arms or legs can obscure the pose.
+- For `pixel`, design for the **64 × 64 working grid**: broad shapes matter more than fine facial or clothing
+  detail. Choose `handdrawn`, `lineart` or `ink` **before Track** if additional pixelation is unwanted; AI
+  redraws can still change the original design and style.
+- Review frame 0 for proportions, facing direction and important accessories before drawing all frames.
+  Then inspect the final animation and amber frames, including foot contact and transitions.
+
+These are input-preparation guidelines, not a measured improvement in pass rate. Narrow punch stances and
+overlapping limbs remain known limitations even with clear input.
+
+General recording guidance: [Move.ai on clothing and contrast](https://docs.move.ai/knowledge/genesis-performance-considerations)
+and [Rokoko on capture setup](https://support.rokoko.com/hc/en-us/articles/28312013117841-How-to-Get-Started-With-Rokoko-Vision).
+These are general capture principles; inspect ActSprite's own guides and output for your clip.
 
 ## Built during the hackathon (Oct 26 – Nov 4, 2026)
 

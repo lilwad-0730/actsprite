@@ -1,0 +1,15 @@
+This is a movement from a phone video. And this is the same movement, turned into a playable character. This is ActSprite.
+
+For a solo developer, character animation takes time. Generating frames with AI adds another challenge: keeping the same design across the sequence. ActSprite starts with a movement you can perform.
+
+Start with a short video and choose a character. You can also upload your own design. Select the part of the clip you want, then track it. SAM 3.1 isolates the actor, and ActSprite selects keyframes and creates silhouette guides. For this demo, we're using the running clip.
+
+Muse Image redraws these poses using the character sheet and the first frame as references. Muse Spark 1.3 scores pose and identity, while SAM checks the silhouette. Failed frames can be redrawn automatically, and the best result is kept. Waiting sections are shortened in this video.
+
+Now download the ZIP and import it into Unity. The importer slices the sprite sheet, builds animation clips and creates a character prefab with a collider. This running animation has sixteen frames, played at twenty frames per second. Press Play, then use A and D to move.
+
+We also tested the consistency mechanism on sixty-eight saved keyframes. The full-check pass rate rose from thirty-two percent for single drawings without an anchor to seventy-nine percent with anchoring and checked redraws. This was a small development test using an earlier sampling version.
+
+ActSprite redraws your character, so its style, proportions, and design details may change. Pixel export simplifies it further. Here, thirteen of sixteen frames passed the checks. Artistic review is still needed.
+
+ActSprite is built for solo developers and game jams. Try the live demo. Bring your movement into Unity. Act it out. Play it in.

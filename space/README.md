@@ -23,6 +23,13 @@ Act out a move on your phone and get a consistent, game-ready animated character
 Built for the Meta Global AI Developer Hackathon (Indie Developer track) with three Meta models:
 SAM 3.1, Muse Image and Muse Spark 1.3.
 
+[Watch the demo on YouTube (2:42)](https://youtu.be/4VDyiQ0EOP4) ·
+[Open the live app](https://andy0730huggin-actsprite.hf.space)
+
+The recorded knight/run example goes from the web app to a playable Unity character: **16 frames at 20 fps**,
+a 0.8-second loop, and **13/16 frames passed automatic checks**. It is one recorded result; artistic review
+is still needed.
+
 Source code, tests and measured results: https://github.com/lilwad-0730/actsprite
 
 ## Pixelation and artwork fidelity
@@ -52,6 +59,7 @@ and download the ZIP for the Unity importer in the repository.
 Choose **Start at** and optional **End at** to use up to 5 seconds. For jump/attack, setting an end time
 keeps the whole selected move; leaving it empty selects its most active part. Idle/walk/run find a cycle
 inside the selected part. Walk/run need at least two full strides; cycle detection can still fail.
+**End at starts blank.** Without an end time, up to 5 seconds from Start at are used, or the remaining clip if shorter.
 
 | Action | Frames (up to) | Playback |
 | --- | --- | --- |
@@ -71,6 +79,26 @@ Limits: 5 tracking steps and 2 sprite runs per visitor per day, and $40 in the c
 Counters and logs can reset when the Space restarts. This is not a persistent billing limit.
 Narrow punch stances can still turn into wide lunges: a local attack check passed only 4/10 frames.
 Review the preview and amber frames before using a result.
+
+## Tips before uploading
+
+- Wear clothes that follow your body shape; baggy trousers, coats and sleeves can hide the limbs.
+- Choose clothing that contrasts with the background in colour and brightness, including shoes against
+  the floor. Use even lighting and a plain background without other people or moving objects.
+- Keep the whole body in frame, leaving room for hands, feet, travel and jump landings. Fix the camera and
+  maintain a consistent side view for the default side-facing characters.
+- Keep the intended gesture readable: avoid limbs fully hiding one another or hands disappearing against
+  the torso. Record walk/run for at least two full strides; include the start and recovery of jump/attack.
+- Upload one clear full-body character, side-facing right on white, with both image dimensions at least
+  256 px. Use **My design faces left** if needed. Strong outlines and large colour blocks survive small
+  sprite sizes better than tiny patterns or accessories.
+- Choose Output style before Track. `pixel` uses a 64 × 64 working grid; `handdrawn`, `lineart` and `ink`
+  avoid additional pixelation but cannot guarantee the original artwork's style and details.
+- Inspect the grey guides before drawing, review frame 0 before drawing all frames, and check the final
+  animation, amber frames and foot contact. Adjust the time range or take if the input is unclear.
+
+These are preparation guidelines, not a measured gain in pass rate. More detail:
+[filming, performance and artwork tips](https://github.com/lilwad-0730/actsprite#tips-for-better-results).
 
 Clips and character images uploaded to this Space are sent to the Meta Model API for processing and are
 deleted from the Space within an hour.
