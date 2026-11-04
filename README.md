@@ -5,15 +5,15 @@
 > Hackathon: Meta Global AI Developer Hackathon · Track: Indie Developer · Theme: **Build for Your World**
 
 Act out a move on your phone. Get a consistent, game-ready animated character in Unity.
-
-> **Before you generate: the default `pixel` style pixelates the final character, including your own uploaded designs.**
-> Fine lines, facial features, textures and gradients can be simplified or lost. The first-frame preview is
-> shown before this processing, so it can look sharper than the final sprites.
-> Read [why pixelation is used, which styles it affects, and how to avoid it](#pixelation-and-artwork-fidelity).
+An 8–12 frame action takes about 4–6 minutes and $0.5–1 in Meta API calls, from the clip to a ZIP the Unity importer
+turns into a playable character ([measurements](#evaluation)).
 
 **Status:** hackathon prototype. The web workflow from tracking a phone clip to downloading a ZIP and playing
 the character in Unity has been tested with a knight/run example, including manual checks of playback,
 grounding and A/D movement.
+
+Style note: the default `pixel` style pixelates the final sprites, uploaded designs included; see
+[Pixelation and artwork fidelity](#pixelation-and-artwork-fidelity) before generating.
 
 ## Demo
 
@@ -31,14 +31,16 @@ Before recording or uploading, see [tips for better results](#tips-for-better-re
 
 **1. Look at finished output.** Each ZIP is exactly what the pipeline hands to Unity:
 
-| Pixel knight, dance (front view, 48 frames) and jump (12 frames) | Pixel hound, walk | Line-art man, run (20 frames) and attack |
+| Pixel knight: dance (front view, 48 frames) in the ZIP; jump (12 frames) preview | Pixel hound, walk | Line-art man, run (20 frames) and attack |
 | --- | --- | --- |
 | ![knight dancing](examples/previews/knight_dance.gif) ![knight jumping](examples/previews/knight_jump.gif) | ![hound](examples/previews/hound_walk.gif) | ![line-art man running](examples/previews/lineman_run.gif) ![line-art man attacking](examples/previews/lineman_attack.gif) |
 | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [Download ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
 | Dance: 40/48 frames passed every check | 4/10 | run 16/20, attack 6/10 |
 | Dance: $3.07 in Meta API calls | $1.01 | $1.21 + $0.53 |
 
-The knight jump is an additional GIF preview; the knight ZIP contains the dance only.
+The knight ZIP holds the dance only. The jump GIF is the knight bundled with the Unity importer
+(`unity/ActSpriteImporter/DemoCharacter`: idle, run, jump, attack), which **ActSprite > Build Demo Scene**
+imports for you.
 
 Inside each ZIP: the sprite sheet, `<name>_meta.json` for the Unity importer, every frame as a PNG, a GIF
 preview, and `report/scores.csv` with the scores of every redraw attempt (`needs_review` marks the frames that did
@@ -111,6 +113,17 @@ Design background: [early experiment notes](spikes/REPORT.md). Current behaviour
 [style settings](actsprite/restyle.py) and [export processing](actsprite/pack.py).
 
 ## How it works
+
+```mermaid
+flowchart LR
+    A["Phone clip"] --> B["SAM 3.1 tracks the actor"]
+    B --> C["Keyframes as grey pose guides"]
+    C --> E["Muse Image redraws each pose as your character: frame 0 first, the rest anchored on it"]
+    E --> F{"Muse Spark 1.3 critic + SAM 3.1 silhouette check"}
+    F -- "fails: redraw with the critic's fix, up to 2 times" --> E
+    F -- "passes" --> G["Feet aligned, one palette: sprite sheet + JSON"]
+    G --> H["Unity importer: clips, Animator, prefab"]
+```
 
 | Step | Meta model | Job |
 | --- | --- | --- |
@@ -192,6 +205,8 @@ attempts. These historical results are separate from the 13/16 running example i
 | Muse Spark 1.3 critic | rejected 14 of 19 deliberately broken frames (recolour 5/5, missing part 5/5, extra item 4/4, wrong proportions 0/5) and 1 of 19 good ones (E6) |
 | SAM 3.1 | a mask in at least 90% of the frames in 9 of 10 clips (E4) |
 | Cost | about $0.5–1.0 for the first run of an 8–12 frame action (E3) |
+
+![E1: share of frames passing every check for each drawing method](eval/results/e1_chart.png)
 
 E2 (time against manual work in Unity) and E5 (masks against hand-drawn outlines) have not been run.
 

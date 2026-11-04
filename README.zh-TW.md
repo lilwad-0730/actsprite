@@ -5,13 +5,12 @@
 > 黑客松：Meta Global AI Developer Hackathon · 賽道：Indie Developer · 主題：**Build for Your World**
 
 用手機演出一個動作，取得角色一致、可直接在 Unity 使用的遊戲動畫。
-
-> **生成前請先確認：預設的 `pixel` 風格會將最終角色像素化，自己上傳的角色也一樣。**
-> 細線、五官、材質與漸層可能被簡化或消失。第一幀預覽是在像素化之前顯示，因此可能比最後輸出的 Sprite 清晰。
-> 請先閱讀[為什麼要像素化、哪些風格會套用，以及如何避免](#像素化與原作保真限制)。
+8–12 幀的動作從影片到可匯入 Unity 的 ZIP 約需 4–6 分鐘、Meta API 費用約 US$0.5–1（[實測數據](#評估)）。
 
 **狀態：** 黑客松原型。已用 knight/run 案例走通網頁追蹤、生成、下載 ZIP 到 Unity 播放的流程，
 並人工驗收動畫播放、腳底貼地與 A/D 左右移動。
+
+畫風提醒：預設的 `pixel` 風格會將最終 Sprite 像素化，自己上傳的角色也一樣；生成前請先看[像素化與原作保真限制](#像素化與原作保真限制)。
 
 ## Demo
 
@@ -28,14 +27,14 @@
 
 **1. 查看完成的輸出。** 每個 ZIP 都是處理流程實際交付給 Unity 的內容：
 
-| 像素騎士：舞蹈（正面、48 幀）與跳躍（12 幀） | 像素獵犬：行走 | 線稿人物：跑步（20 幀）與攻擊 |
+| 像素騎士：ZIP 內為舞蹈（正面、48 幀）；跳躍（12 幀）為預覽 | 像素獵犬：行走 | 線稿人物：跑步（20 幀）與攻擊 |
 | --- | --- | --- |
 | ![騎士舞蹈](examples/previews/knight_dance.gif) ![騎士跳躍](examples/previews/knight_jump.gif) | ![獵犬](examples/previews/hound_walk.gif) | ![線稿人物跑步](examples/previews/lineman_run.gif) ![線稿人物攻擊](examples/previews/lineman_attack.gif) |
 | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_knight.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_hound.zip) | [下載 ZIP](https://github.com/lilwad-0730/actsprite/raw/main/examples/actsprite_lineman.zip) |
 | 舞蹈：48 幀中有 40 幀通過全部檢查 | 10 幀中有 4 幀 | 跑步 20 幀中有 16 幀，攻擊 10 幀中有 6 幀 |
 | 舞蹈：Meta API 呼叫費用 US$3.07 | US$1.01 | US$1.21 + US$0.53 |
 
-騎士跳躍為額外的 GIF 預覽；騎士 ZIP 目前只包含舞蹈。
+騎士 ZIP 只包含舞蹈。跳躍 GIF 是 Unity 匯入工具內附的騎士（`unity/ActSpriteImporter/DemoCharacter`：待機、跑步、跳躍、攻擊），執行 **ActSprite > Build Demo Scene** 時會自動匯入。
 
 每個 ZIP 內含 Sprite Sheet、供 Unity 匯入工具使用的 `<name>_meta.json`、每一幀的 PNG、GIF
 預覽，以及記錄每次重繪分數的 `report/scores.csv`（`needs_review` 代表該幀未通過所有檢查）。
@@ -97,6 +96,17 @@ ActSprite 的固定格線，不能原封不動保留原圖的像素排列。
 設計背景見[早期實驗紀錄](spikes/REPORT.md)；目前實作見[風格設定](actsprite/restyle.py)與[輸出處理](actsprite/pack.py)。
 
 ## 運作方式
+
+```mermaid
+flowchart LR
+    A["手機影片"] --> B["SAM 3.1 追蹤表演者"]
+    B --> C["關鍵幀轉成灰色姿勢線稿"]
+    C --> E["Muse Image 依角色重畫每個姿勢：先畫第 0 幀，其餘以它為錨點"]
+    E --> F{"Muse Spark 1.3 評審＋SAM 3.1 剪影檢查"}
+    F -- "未通過：帶評審的修改意見重畫，最多 2 次" --> E
+    F -- "通過" --> G["腳底對齊、統一調色盤：Sprite Sheet＋JSON"]
+    G --> H["Unity 匯入工具：動畫、Animator、Prefab"]
+```
 
 | 步驟 | Meta 模型 | 工作 |
 | --- | --- | --- |
@@ -166,6 +176,8 @@ E1 採用較早取樣版本保存的 68 個關鍵幀；驗證重畫結果取最�
 | Muse Spark 1.3 評審 | 19 張故意改壞的幀抓到 14 張（換色 5/5、少配件 5/5、多配件 4/4、比例錯誤 0/5），19 張正常幀誤判 1 張（E6） |
 | SAM 3.1 | 10 段影片中 9 段有 90% 以上的幀追蹤到主角（E4） |
 | 費用 | 8–12 幀的動作第一次生成約 US$0.5–1.0（E3） |
+
+![E1：各種繪製方式中通過全部檢查的幀比例](eval/results/e1_chart.png)
 
 E2（與手動在 Unity 製作比較時間）及 E5（遮罩與手繪輪廓比較）尚未執行。
 
